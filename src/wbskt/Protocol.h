@@ -1,0 +1,37 @@
+// The device protocol's names and limits. Docs/Device.Protocol.md in wbskt/Wbskt is the spec.
+#pragma once
+
+#include <stddef.h>
+
+namespace wbskt {
+
+constexpr const char* kSubprotocol = "wbskt.v1";
+constexpr size_t kMaxMessageBytes = 64 * 1024;
+constexpr size_t kMaxTypeLength = 100;
+
+constexpr const char* kPing = "sys.ping";
+constexpr const char* kPong = "sys.pong";
+constexpr const char* kAck = "sys.ack";
+constexpr const char* kCapabilities = "capabilities";
+constexpr const char* kStateReport = "state.report";
+constexpr const char* kRefusedExpired = "expired";
+
+constexpr const char* kRegisterPath = "/api/v1/client-registrations/initiate";
+constexpr const char* kLoginPath = "/api/v1/client-auth/login";
+constexpr const char* kSocketPath = "/ws";
+
+constexpr int kStatusPending = 0;
+constexpr int kStatusRegistered = 1;
+
+constexpr const char* kCodeUnauthorized = "CLIENT_UNAUTHORIZED";
+
+// Renew the access token this long before it expires.
+constexpr unsigned long kTokenRenewBeforeMs = 60UL * 1000UL;
+
+// A type only the platform may send: sys.* in any case, capabilities and state.report.
+bool isReserved(const char* type);
+
+// 1-100 characters and not reserved.
+bool isSendableType(const char* type);
+
+}  // namespace wbskt
