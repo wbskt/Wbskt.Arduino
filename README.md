@@ -49,7 +49,12 @@ and connects once someone approves it.
       https://github.com/wbskt/Wbskt.Arduino.git
       bblanchon/ArduinoJson@^7.0.0
       links2004/WebSockets@^2.6.0
+  board_build.partitions = min_spiffs.csv
   ```
+
+WiFi and TLS together come to about 1.3 MB, which is more than the default 1.2 MB app partition.
+Pick a bigger app partition that still allows OTA: **Minimal SPIFFS (1.9MB APP with OTA)** in the
+Arduino IDE (Tools → Partition Scheme), or `min_spiffs.csv` in PlatformIO.
 
 ## Commands
 

@@ -23,7 +23,11 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        fqbn: ['esp32:esp32:esp32', 'esp32:esp32:esp32s3', 'esp32:esp32:esp32c3']
+        # WiFi + TLS outgrow the default 1.2 MB app partition; min_spiffs gives 1.9 MB and keeps OTA.
+        fqbn:
+          - esp32:esp32:esp32:PartitionScheme=min_spiffs
+          - esp32:esp32:esp32s3:PartitionScheme=min_spiffs
+          - esp32:esp32:esp32c3:PartitionScheme=min_spiffs
     steps:
       - uses: actions/checkout@v4
       - uses: arduino/compile-sketches@v1
@@ -54,5 +58,6 @@ jobs:
         run: |
           for example in examples/*/; do
             pio ci "$example" --lib . --board esp32dev \
-              --project-option "lib_deps=bblanchon/ArduinoJson@^7.0.0, links2004/WebSockets@^2.6.0"
+              --project-option "lib_deps=bblanchon/ArduinoJson@^7.0.0, links2004/WebSockets@^2.6.0" \
+              --project-option "board_build.partitions=min_spiffs.csv"
           done
