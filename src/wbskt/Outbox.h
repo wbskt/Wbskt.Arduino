@@ -6,7 +6,7 @@
 #include <deque>
 #include <string>
 
-namespace wbskt {
+namespace wbskt_core {
 
 class Outbox {
 public:
@@ -25,4 +25,4 @@ private:
     std::deque<std::string> frames_;
 };
 
-}  // namespace wbskt
+}  // namespace wbskt_core

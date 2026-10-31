@@ -50,7 +50,7 @@ WbsktCommandBuilder WbsktClient::addCommand(const char* name, const char* descri
 
 void WbsktClient::begin() {
     if (config_.rootCa == nullptr) {
-        config_.rootCa = wbskt::kLetsEncryptRoots;
+        config_.rootCa = wbskt_core::kLetsEncryptRoots;
     }
     if (config_.ntpServer != nullptr) {
         configTime(0, 0, config_.ntpServer);
@@ -118,7 +118,7 @@ bool WbsktClient::ensureToken() {
 }
 
 bool WbsktClient::tokenValid() const {
-    return !token_.isEmpty() && millis() - tokenIssuedAt_ + wbskt::kTokenRenewBeforeMs < tokenLifetimeMs_;
+    return !token_.isEmpty() && millis() - tokenIssuedAt_ + wbskt_core::kTokenRenewBeforeMs < tokenLifetimeMs_;
 }
 
 bool WbsktClient::registerDevice() {
@@ -133,7 +133,7 @@ bool WbsktClient::registerDevice() {
     body["name"] = deviceName_;
     JsonDocument response;
     uint32_t retryAfterMs = 0;
-    const int status = postJson(wbskt::kRegisterPath, body, response, retryAfterMs);
+    const int status = postJson(wbskt_core::kRegisterPath, body, response, retryAfterMs);
     if (status == 429) {
         schedule(policy_.afterThrottle(retryAfterMs));
         return false;
@@ -153,7 +153,7 @@ bool WbsktClient::registerDevice() {
     prefs_.putString(kPrefsRef, clientRefId_);
     prefs_.putString(kPrefsSecret, secret_);
     prefs_.end();
-    if ((response["status"] | wbskt::kStatusRegistered) == wbskt::kStatusPending) {
+    if ((response["status"] | wbskt_core::kStatusRegistered) == wbskt_core::kStatusPending) {
         log_i("wbskt: registered; waiting for approval in the console");
     }
     return true;
@@ -165,7 +165,7 @@ bool WbsktClient::login() {
     body["secret"] = secret_;
     JsonDocument response;
     uint32_t retryAfterMs = 0;
-    const int status = postJson(wbskt::kLoginPath, body, response, retryAfterMs);
+    const int status = postJson(wbskt_core::kLoginPath, body, response, retryAfterMs);
 
     const char* token = response["accessToken"];
     if (status == 200 && token != nullptr) {
@@ -179,7 +179,7 @@ bool WbsktClient::login() {
         return false;
     }
     const char* code = response["code"];
-    if (status == 401 && code != nullptr && strcmp(code, wbskt::kCodeUnauthorized) == 0) {
+    if (status == 401 && code != nullptr && strcmp(code, wbskt_core::kCodeUnauthorized) == 0) {
         // Deleted, or its secret rotated: these credentials will never work again.
         forgetCredentials();
     }
@@ -218,7 +218,7 @@ int WbsktClient::postJson(const char* path, const JsonDocument& body, JsonDocume
 
 void WbsktClient::openSocket() {
     // begin() clears the authorization, so it is set after.
-    socket_.beginSslWithCA(config_.socketHost, config_.port, wbskt::kSocketPath, config_.rootCa, wbskt::kSubprotocol);
+    socket_.beginSslWithCA(config_.socketHost, config_.port, wbskt_core::kSocketPath, config_.rootCa, wbskt_core::kSubprotocol);
     authHeader_ = "Bearer " + token_;
     socket_.setAuthorization(authHeader_.c_str());
     socket_.setReconnectInterval(kNeverReconnect);
@@ -231,7 +231,7 @@ void WbsktClient::onSocketEvent(WStype_t type, uint8_t* payload, size_t length) 
         case WStype_CONNECTED: {
             failures_ = 0;
             rejectedUpgrades_ = 0;
-            socket_.sendTXT(wbskt::encodeCapabilities(
+            socket_.sendTXT(wbskt_core::encodeCapabilities(
                 {"wbskt-arduino", WBSKT_SDK_VERSION, std::string("ESP32 ") + ESP.getChipModel()}, commands_).c_str());
             flushOutbox();
             state_ = State::Connected;
@@ -254,11 +254,11 @@ void WbsktClient::onSocketEvent(WStype_t type, uint8_t* payload, size_t length) 
             break;
         case WStype_TEXT: {
             int64_t now = nowSeconds();
-            wbskt::readFrame(reinterpret_cast<const char*>(payload), length, now, incoming_);
+            wbskt_core::readFrame(reinterpret_cast<const char*>(payload), length, now, incoming_);
             if (!incoming_.reply.empty()) {
                 socket_.sendTXT(incoming_.reply.c_str());
             }
-            if (incoming_.action == wbskt::Action::Deliver && onMessage_) {
+            if (incoming_.action == wbskt_core::Action::Deliver && onMessage_) {
                 onMessage_({incoming_.type, incoming_.payload, incoming_.commandId});
             }
             break;
@@ -292,29 +292,29 @@ void WbsktClient::schedule(uint32_t delayMs) {
 }
 
 bool WbsktClient::send(const char* type, JsonVariantConst payload) {
-    if (!wbskt::isSendableType(type)) {
+    if (!wbskt_core::isSendableType(type)) {
         return false;
     }
     uint16_t millis = 0;
     const int64_t now = nowSeconds(&millis);
-    return enqueue(wbskt::encodeMessage(type, payload, now, millis));
+    return enqueue(wbskt_core::encodeMessage(type, payload, now, millis));
 }
 
 bool WbsktClient::reportState(const JsonDocument& values) {
     uint16_t millis = 0;
     const int64_t now = nowSeconds(&millis);
-    return enqueue(wbskt::encodeMessage(wbskt::kStateReport, values.as<JsonVariantConst>(), now, millis));
+    return enqueue(wbskt_core::encodeMessage(wbskt_core::kStateReport, values.as<JsonVariantConst>(), now, millis));
 }
 
 void WbsktClient::publishCapabilities() {
     if (state_ == State::Connected) {
-        socket_.sendTXT(wbskt::encodeCapabilities(
+        socket_.sendTXT(wbskt_core::encodeCapabilities(
             {"wbskt-arduino", WBSKT_SDK_VERSION, std::string("ESP32 ") + ESP.getChipModel()}, commands_).c_str());
     }
 }
 
 bool WbsktClient::enqueue(std::string frame) {
-    if (frame.size() > wbskt::kMaxMessageBytes) {
+    if (frame.size() > wbskt_core::kMaxMessageBytes) {
         return false;
     }
     if (state_ == State::Connected && outbox_.empty() && socket_.sendTXT(frame.c_str())) {

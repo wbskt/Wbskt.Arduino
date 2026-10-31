@@ -15,7 +15,7 @@
 #include "wbskt/Outbox.h"
 #include "wbskt/Reconnect.h"
 
-using WbsktDataType = wbskt::DataType;
+using WbsktDataType = wbskt_core::DataType;
 
 struct WbsktMessage {
     const char* type;
@@ -40,13 +40,13 @@ struct WbsktConfig {
 
 class WbsktCommandBuilder {
 public:
-    explicit WbsktCommandBuilder(wbskt::Command& command) : command_(command) {}
+    explicit WbsktCommandBuilder(wbskt_core::Command& command) : command_(command) {}
 
     WbsktCommandBuilder& param(const char* name, WbsktDataType type, bool required = false,
                                const char* label = "", const char* description = "");
 
 private:
-    wbskt::Command& command_;
+    wbskt_core::Command& command_;
 };
 
 class WbsktClient {
@@ -105,10 +105,10 @@ private:
     String deviceName_;
     String policyPin_;
     WbsktConfig config_;
-    std::vector<wbskt::Command> commands_;
-    wbskt::Outbox outbox_;
-    wbskt::ReconnectPolicy policy_;
-    wbskt::Incoming incoming_;
+    std::vector<wbskt_core::Command> commands_;
+    wbskt_core::Outbox outbox_;
+    wbskt_core::ReconnectPolicy policy_;
+    wbskt_core::Incoming incoming_;
     WebSocketsClient socket_;
     Preferences prefs_;
 

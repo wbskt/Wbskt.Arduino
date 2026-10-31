@@ -1,6 +1,6 @@
 #include "Reconnect.h"
 
-namespace wbskt {
+namespace wbskt_core {
 
 uint32_t ReconnectPolicy::firstDelay(bool serverRestarting) const {
     return random_(serverRestarting ? kRestartSpreadMs : kSpreadMs);
@@ -18,4 +18,4 @@ uint32_t ReconnectPolicy::afterThrottle(uint32_t retryAfterMs) const {
     return retryAfterMs + random_(kBaseMs);
 }
 
-}  // namespace wbskt
+}  // namespace wbskt_core
