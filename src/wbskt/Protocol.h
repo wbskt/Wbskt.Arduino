@@ -3,7 +3,7 @@
 
 #include <stddef.h>
 
-namespace wbskt {
+namespace wbskt_core {
 
 constexpr const char* kSubprotocol = "wbskt.v1";
 constexpr size_t kMaxMessageBytes = 64 * 1024;
@@ -34,4 +34,4 @@ bool isReserved(const char* type);
 // 1-100 characters and not reserved.
 bool isSendableType(const char* type);
 
-}  // namespace wbskt
+}  // namespace wbskt_core

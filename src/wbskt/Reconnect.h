@@ -5,7 +5,7 @@
 
 #include <stdint.h>
 
-namespace wbskt {
+namespace wbskt_core {
 
 class ReconnectPolicy {
 public:
@@ -26,4 +26,4 @@ private:
     uint32_t (*random_)(uint32_t);
 };
 
-}  // namespace wbskt
+}  // namespace wbskt_core

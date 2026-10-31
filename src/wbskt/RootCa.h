@@ -2,7 +2,7 @@
 // and a self-hosted install with the default Traefik ACME setup chain to one of them.
 #pragma once
 
-namespace wbskt {
+namespace wbskt_core {
 
 constexpr const char* kLetsEncryptRoots =
     "-----BEGIN CERTIFICATE-----\n"
@@ -52,4 +52,4 @@ constexpr const char* kLetsEncryptRoots =
     "-----END CERTIFICATE-----\n"
     ;
 
-}  // namespace wbskt
+}  // namespace wbskt_core

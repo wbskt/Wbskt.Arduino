@@ -3,7 +3,7 @@
 #include <ctype.h>
 #include <stdio.h>
 
-namespace wbskt {
+namespace wbskt_core {
 
 namespace {
 
@@ -112,4 +112,4 @@ std::string formatIsoTime(int64_t epochSeconds, uint16_t millis) {
     return buffer;
 }
 
-}  // namespace wbskt
+}  // namespace wbskt_core

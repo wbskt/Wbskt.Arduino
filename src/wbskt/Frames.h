@@ -8,7 +8,7 @@
 #include <string>
 #include <vector>
 
-namespace wbskt {
+namespace wbskt_core {
 
 enum class DataType { String, Number, Boolean, Object };
 
@@ -56,4 +56,4 @@ struct Incoming {
 // isn't set, and then no command is refused as expired.
 void readFrame(const char* data, size_t length, int64_t nowSeconds, Incoming& out);
 
-}  // namespace wbskt
+}  // namespace wbskt_core

@@ -6,7 +6,7 @@
 #include "IsoTime.h"
 #include "Protocol.h"
 
-namespace wbskt {
+namespace wbskt_core {
 
 namespace {
 
@@ -144,4 +144,4 @@ void readFrame(const char* data, size_t length, int64_t nowSeconds, Incoming& ou
     out.action = Action::Deliver;
 }
 
-}  // namespace wbskt
+}  // namespace wbskt_core

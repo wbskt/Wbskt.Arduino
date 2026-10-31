@@ -32,51 +32,51 @@ void readJson(const std::string& text, JsonDocument& doc) {
 }
 
 void reservedTypes() {
-    CHECK(wbskt::isReserved("sys.custom"));
-    CHECK(wbskt::isReserved("SYS.ping"));
-    CHECK(wbskt::isReserved("Capabilities"));
-    CHECK(wbskt::isReserved("state.REPORT"));
-    CHECK(!wbskt::isReserved("temperature"));
-    CHECK(!wbskt::isReserved("system.boot"));
-    CHECK(!wbskt::isSendableType(""));
-    CHECK(!wbskt::isSendableType(nullptr));
-    CHECK(!wbskt::isSendableType(std::string(101, 'x').c_str()));
-    CHECK(wbskt::isSendableType(std::string(100, 'x').c_str()));
+    CHECK(wbskt_core::isReserved("sys.custom"));
+    CHECK(wbskt_core::isReserved("SYS.ping"));
+    CHECK(wbskt_core::isReserved("Capabilities"));
+    CHECK(wbskt_core::isReserved("state.REPORT"));
+    CHECK(!wbskt_core::isReserved("temperature"));
+    CHECK(!wbskt_core::isReserved("system.boot"));
+    CHECK(!wbskt_core::isSendableType(""));
+    CHECK(!wbskt_core::isSendableType(nullptr));
+    CHECK(!wbskt_core::isSendableType(std::string(101, 'x').c_str()));
+    CHECK(wbskt_core::isSendableType(std::string(100, 'x').c_str()));
 }
 
 void isoTime() {
-    CHECK(wbskt::parseIsoTime("2026-10-31T12:00:00Z") == kNow);
-    CHECK(wbskt::parseIsoTime("2026-10-31T12:00:00.1234567Z") == kNow);
-    CHECK(wbskt::parseIsoTime("2026-10-31T13:30:00+01:30") == kNow);
-    CHECK(wbskt::parseIsoTime("2026-10-31T12:00:00") == kNow);
-    CHECK(wbskt::parseIsoTime("1970-01-01T00:00:00Z") == 0);
-    CHECK(wbskt::parseIsoTime("2024-02-29T00:00:00Z") == 1709164800);
-    CHECK(wbskt::parseIsoTime("not a time") == -1);
-    CHECK(wbskt::parseIsoTime("2026-13-01T00:00:00Z") == -1);
-    CHECK(wbskt::parseIsoTime(nullptr) == -1);
-    CHECK(wbskt::formatIsoTime(kNow, 42) == "2026-10-31T12:00:00.042Z");
-    CHECK(wbskt::formatIsoTime(1709164800, 0) == "2024-02-29T00:00:00.000Z");
+    CHECK(wbskt_core::parseIsoTime("2026-10-31T12:00:00Z") == kNow);
+    CHECK(wbskt_core::parseIsoTime("2026-10-31T12:00:00.1234567Z") == kNow);
+    CHECK(wbskt_core::parseIsoTime("2026-10-31T13:30:00+01:30") == kNow);
+    CHECK(wbskt_core::parseIsoTime("2026-10-31T12:00:00") == kNow);
+    CHECK(wbskt_core::parseIsoTime("1970-01-01T00:00:00Z") == 0);
+    CHECK(wbskt_core::parseIsoTime("2024-02-29T00:00:00Z") == 1709164800);
+    CHECK(wbskt_core::parseIsoTime("not a time") == -1);
+    CHECK(wbskt_core::parseIsoTime("2026-13-01T00:00:00Z") == -1);
+    CHECK(wbskt_core::parseIsoTime(nullptr) == -1);
+    CHECK(wbskt_core::formatIsoTime(kNow, 42) == "2026-10-31T12:00:00.042Z");
+    CHECK(wbskt_core::formatIsoTime(1709164800, 0) == "2024-02-29T00:00:00.000Z");
 }
 
 void messages() {
     JsonDocument payload;
     payload["celsius"] = 21.5;
     JsonDocument frame;
-    readJson(wbskt::encodeMessage("temperature", payload.as<JsonVariantConst>(), kNow, 7), frame);
+    readJson(wbskt_core::encodeMessage("temperature", payload.as<JsonVariantConst>(), kNow, 7), frame);
     CHECK(std::strcmp(frame["type"], "temperature") == 0);
     CHECK(frame["payload"]["celsius"].as<double>() == 21.5);
     CHECK(std::strcmp(frame["sentAt"], "2026-10-31T12:00:00.007Z") == 0);
 
     JsonDocument unstamped;
-    readJson(wbskt::encodeMessage("temperature", payload.as<JsonVariantConst>(), 5, 0), unstamped);
+    readJson(wbskt_core::encodeMessage("temperature", payload.as<JsonVariantConst>(), 5, 0), unstamped);
     CHECK(unstamped["sentAt"].isNull());
 }
 
 void capabilities() {
-    std::vector<wbskt::Command> commands;
-    commands.push_back({"relay.set", "Switch the relay", {{"on", wbskt::DataType::Boolean, true, "", ""}}});
+    std::vector<wbskt_core::Command> commands;
+    commands.push_back({"relay.set", "Switch the relay", {{"on", wbskt_core::DataType::Boolean, true, "", ""}}});
     JsonDocument frame;
-    readJson(wbskt::encodeCapabilities({"wbskt-arduino", "1.0.0", "ESP32 ESP32-S3"}, commands), frame);
+    readJson(wbskt_core::encodeCapabilities({"wbskt-arduino", "1.0.0", "ESP32 ESP32-S3"}, commands), frame);
     CHECK(std::strcmp(frame["type"], "capabilities") == 0);
     CHECK(std::strcmp(frame["payload"]["agent"], "wbskt-arduino") == 0);
     JsonVariantConst relay = frame["payload"]["capabilities"][0];
@@ -88,10 +88,10 @@ void capabilities() {
 }
 
 void pingIsAnsweredWithPong() {
-    wbskt::Incoming in;
+    wbskt_core::Incoming in;
     const char* ping = R"({"type":"sys.ping","payload":{"timestamp":"2026-10-31T12:00:00.1234567Z","id":"p1"}})";
-    wbskt::readFrame(ping, std::strlen(ping), kNow, in);
-    CHECK(in.action == wbskt::Action::Reply);
+    wbskt_core::readFrame(ping, std::strlen(ping), kNow, in);
+    CHECK(in.action == wbskt_core::Action::Reply);
     JsonDocument pong;
     readJson(in.reply, pong);
     CHECK(std::strcmp(pong["type"], "sys.pong") == 0);
@@ -100,10 +100,10 @@ void pingIsAnsweredWithPong() {
 }
 
 void commandIsAckedThenDelivered() {
-    wbskt::Incoming in;
+    wbskt_core::Incoming in;
     const char* command = R"({"type":"relay.set","payload":{"on":true},"commandId":"c1","expiresAt":"2026-10-31T12:01:00Z"})";
-    wbskt::readFrame(command, std::strlen(command), kNow, in);
-    CHECK(in.action == wbskt::Action::Deliver);
+    wbskt_core::readFrame(command, std::strlen(command), kNow, in);
+    CHECK(in.action == wbskt_core::Action::Deliver);
     CHECK(std::strcmp(in.type, "relay.set") == 0);
     CHECK(std::strcmp(in.commandId, "c1") == 0);
     CHECK(in.payload["on"].as<bool>());
@@ -115,10 +115,10 @@ void commandIsAckedThenDelivered() {
 }
 
 void expiredCommandIsRefused() {
-    wbskt::Incoming in;
+    wbskt_core::Incoming in;
     const char* command = R"({"type":"relay.set","payload":{},"commandId":"c2","expiresAt":"2026-10-31T11:59:59Z"})";
-    wbskt::readFrame(command, std::strlen(command), kNow, in);
-    CHECK(in.action == wbskt::Action::Reply);
+    wbskt_core::readFrame(command, std::strlen(command), kNow, in);
+    CHECK(in.action == wbskt_core::Action::Reply);
     JsonDocument ack;
     readJson(in.reply, ack);
     CHECK(std::strcmp(ack["payload"]["commandId"], "c2") == 0);
@@ -127,17 +127,17 @@ void expiredCommandIsRefused() {
 }
 
 void expiryIsNotJudgedWithoutAClock() {
-    wbskt::Incoming in;
+    wbskt_core::Incoming in;
     const char* command = R"({"type":"relay.set","payload":{},"commandId":"c3","expiresAt":"2020-01-01T00:00:00Z"})";
-    wbskt::readFrame(command, std::strlen(command), 12, in);
-    CHECK(in.action == wbskt::Action::Deliver);
+    wbskt_core::readFrame(command, std::strlen(command), 12, in);
+    CHECK(in.action == wbskt_core::Action::Deliver);
 }
 
 void plainMessagesAreDeliveredWithoutAck() {
-    wbskt::Incoming in;
+    wbskt_core::Incoming in;
     const char* message = R"({"type":"hello","payload":5})";
-    wbskt::readFrame(message, std::strlen(message), kNow, in);
-    CHECK(in.action == wbskt::Action::Deliver);
+    wbskt_core::readFrame(message, std::strlen(message), kNow, in);
+    CHECK(in.action == wbskt_core::Action::Deliver);
     CHECK(in.reply.empty());
     CHECK(in.payload.as<int>() == 5);
 }
@@ -146,15 +146,15 @@ void junkAndPlatformMessagesAreIgnored() {
     const char* frames[] = {"not json", R"({"payload":1})", R"({"type":""})", R"({"type":"sys.other"})",
                             R"({"type":"capabilities"})"};
     for (const char* frame : frames) {
-        wbskt::Incoming in;
-        wbskt::readFrame(frame, std::strlen(frame), kNow, in);
-        CHECK(in.action == wbskt::Action::Ignore);
+        wbskt_core::Incoming in;
+        wbskt_core::readFrame(frame, std::strlen(frame), kNow, in);
+        CHECK(in.action == wbskt_core::Action::Ignore);
         CHECK(in.reply.empty());
     }
 }
 
 void outboxKeepsOrderAndDropsTheOldest() {
-    wbskt::Outbox outbox(2);
+    wbskt_core::Outbox outbox(2);
     outbox.push("a");
     outbox.push("b");
     outbox.push("c");
@@ -169,7 +169,7 @@ uint32_t ceilingRandom(uint32_t max) { return max; }
 uint32_t zeroRandom(uint32_t) { return 0; }
 
 void reconnectCeilings() {
-    wbskt::ReconnectPolicy top(ceilingRandom);
+    wbskt_core::ReconnectPolicy top(ceilingRandom);
     CHECK(top.firstDelay(false) == 10000);
     CHECK(top.firstDelay(true) == 30000);
     CHECK(top.retryDelay(0) == 2000);
@@ -178,7 +178,7 @@ void reconnectCeilings() {
     CHECK(top.retryDelay(1000) == 60000);
     CHECK(top.afterThrottle(5000) == 7000);
 
-    wbskt::ReconnectPolicy bottom(zeroRandom);
+    wbskt_core::ReconnectPolicy bottom(zeroRandom);
     CHECK(bottom.retryDelay(10) == 0);
     CHECK(bottom.afterThrottle(5000) == 5000);
 }

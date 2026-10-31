@@ -2,7 +2,7 @@
 
 #include <utility>
 
-namespace wbskt {
+namespace wbskt_core {
 
 void Outbox::push(std::string frame) {
     if (capacity_ == 0) {
@@ -16,4 +16,4 @@ void Outbox::push(std::string frame) {
     frames_.push_back(std::move(frame));
 }
 
-}  // namespace wbskt
+}  // namespace wbskt_core
