@@ -57,6 +57,21 @@ bool isSendableType(const char* type) {
     return length >= 1 && length <= kMaxTypeLength && !isReserved(type);
 }
 
+UpgradeFailure classifyUpgradeFailure(const char* reason, size_t length) {
+    if (reason == nullptr || length == 0) {
+        return UpgradeFailure::Unknown;
+    }
+    const std::string text(reason, length);
+    const size_t status = text.find("HTTP ");
+    if (status == std::string::npos) {
+        return UpgradeFailure::Other;
+    }
+    const std::string code = text.substr(status + 5, 3);
+    return code == "401" && (text.size() == status + 8 || !isdigit(static_cast<unsigned char>(text[status + 8])))
+               ? UpgradeFailure::TokenRefused
+               : UpgradeFailure::Other;
+}
+
 std::string encodeMessage(const char* type, JsonVariantConst payload, int64_t nowSeconds, uint16_t nowMillis) {
     JsonDocument doc;
     doc["type"] = type;

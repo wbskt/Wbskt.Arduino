@@ -34,4 +34,14 @@ bool isReserved(const char* type);
 // 1-100 characters and not reserved.
 bool isSendableType(const char* type);
 
+enum class UpgradeFailure {
+    TokenRefused,  // the upgrade was answered 401: log in again
+    Other,         // any other status, or the network: keep the token
+    Unknown,       // no reason given (WebSockets before 2.7.2)
+};
+
+// Reads the reason WebSockets passes with WStype_DISCONNECTED when an upgrade fails: "HTTP 401",
+// or "WebSocket handshake failed - HTTP 401" when the answer had no Connection: upgrade.
+UpgradeFailure classifyUpgradeFailure(const char* reason, size_t length);
+
 }  // namespace wbskt_core

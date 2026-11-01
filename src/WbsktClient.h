@@ -124,6 +124,7 @@ private:
     uint32_t waitMs_ = 0;
     uint32_t failures_ = 0;
     uint32_t rejectedUpgrades_ = 0;
+    bool attemptStarted_ = false;
 
     MessageHandler onMessage_;
     EventHandler onConnected_;

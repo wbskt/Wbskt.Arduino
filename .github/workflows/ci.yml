@@ -18,6 +18,31 @@ jobs:
       - name: Protocol logic (frames, times, outbox, backoff)
         run: make -C test/host
 
+  conformance:
+    # The device protocol checklist (Tests/Conformance in wbskt/Wbskt), run against WbsktClient
+    # built for Linux over the shims in test/conformance/shim.
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/checkout@v4
+        with:
+          repository: wbskt/Wbskt
+          path: wbskt
+          sparse-checkout: Tests/Conformance
+      - name: Fetch ArduinoJson
+        run: git clone --depth 1 --branch v7.4.2 https://github.com/bblanchon/ArduinoJson test/host/ArduinoJson
+      - name: Build the harness
+        run: make -C test/conformance
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+      - name: Run the suite
+        working-directory: wbskt/Tests/Conformance
+        run: |
+          pip install -r requirements.txt
+          WBSKT_HARNESS="$GITHUB_WORKSPACE/test/conformance/wbskt-harness" python -m pytest -v
+
   compile:
     runs-on: ubuntu-latest
     strategy:
