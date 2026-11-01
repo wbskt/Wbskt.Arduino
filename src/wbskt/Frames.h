@@ -38,12 +38,15 @@ std::string encodeMessage(const char* type, JsonVariantConst payload);
 // Adds "sentAt" to a frame from encodeMessage. Bytes it adds at most: kSentAtBytes.
 void stampSentAt(std::string& frame, int64_t epochMillis);
 constexpr size_t kSentAtBytes = 37;
-std::string encodeCapabilities(const DeviceInfo& device, const std::vector<Command>& commands);
+// system lists the platform commands the firmware takes, such as "ota"; left out when empty.
+std::string encodeCapabilities(const DeviceInfo& device, const std::vector<Command>& commands,
+                               const std::vector<std::string>& system = {});
 
 enum class Action {
     Ignore,   // not a message, or a platform message the device has nothing to do for
     Reply,    // send `reply` and stop (a pong, or a refusal of an expired command)
     Deliver,  // send `reply` if not empty (the ack), then hand the message to the sketch
+    System,   // send `reply` if not empty (the ack), then the SDK carries it out (sys.ota.update)
 };
 
 struct Incoming {

@@ -16,6 +16,11 @@ constexpr const char* kAck = "sys.ack";
 constexpr const char* kCapabilities = "capabilities";
 constexpr const char* kStateReport = "state.report";
 constexpr const char* kRefusedExpired = "expired";
+constexpr const char* kOtaUpdate = "sys.ota.update";
+constexpr const char* kOtaStatus = "sys.ota.status";
+// What capabilities lists under "system" when the firmware takes sys.ota.update.
+constexpr const char* kSystemOta = "ota";
+constexpr size_t kSha256HexLength = 64;
 
 constexpr const char* kRegisterPath = "/api/v1/client-registrations/initiate";
 constexpr const char* kLoginPath = "/api/v1/client-auth/login";

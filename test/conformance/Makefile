@@ -4,7 +4,7 @@ ARDUINOJSON ?= ../host/ArduinoJson/src
 CXXFLAGS ?= -std=c++17 -Wall -Wextra -Werror -Wno-maybe-uninitialized -O1 -g
 LDFLAGS += -pthread
 DEFINES = -DARDUINOJSON_ENABLE_ARDUINO_STRING=1
-SOURCES = harness.cpp shim/Host.cpp ../../src/WbsktClient.cpp $(wildcard ../../src/wbskt/*.cpp)
+SOURCES = harness.cpp shim/Host.cpp shim/OtaFlash.cpp ../../src/WbsktClient.cpp $(wildcard ../../src/wbskt/*.cpp)
 HEADERS = $(wildcard shim/*.h shim/freertos/*.h ../../src/*.h ../../src/wbskt/*.h)
 
 wbskt-harness: $(SOURCES) $(HEADERS)

@@ -9,7 +9,10 @@ public:
     void end();
     String getString(const char* key, const String& fallback = String());
     size_t putString(const char* key, const String& value);
+    uint8_t getUChar(const char* key, uint8_t fallback = 0);
+    size_t putUChar(const char* key, uint8_t value);
     bool remove(const char* key);
+    bool clear();
 
 private:
     std::string name_;

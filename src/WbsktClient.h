@@ -13,11 +13,23 @@
 #include <vector>
 
 #include "wbskt/Frames.h"
+#include "wbskt/Ota.h"
 #include "wbskt/Outbox.h"
 #include "wbskt/RateLimit.h"
 #include "wbskt/Reconnect.h"
 
 using WbsktDataType = wbskt_core::DataType;
+using WbsktOtaState = wbskt_core::OtaState;
+
+// An update the console asked for, passed to onOtaRequest before anything is downloaded.
+struct WbsktOtaRequest {
+    const char* url;
+    const char* sha256;
+    // Empty when the command didn't say.
+    const char* version;
+    // Bytes, or 0 when the command didn't say.
+    size_t size;
+};
 
 struct WbsktMessage {
     const char* type;
@@ -48,6 +60,14 @@ struct WbsktConfig {
     // Sign in on a FreeRTOS task, so loop() keeps running during the TLS handshake. false signs in
     // inside loop(), which then blocks for a few seconds.
     bool backgroundSignIn = true;
+    // PEM roots for the host firmware is downloaded from, when it isn't covered by rootCa (GitHub
+    // release assets aren't: they need the roots their CDN chains to). nullptr uses rootCa.
+    const char* otaRootCa = nullptr;
+    // After an update the new firmware has this long, from boot, to connect to Wbskt. If it
+    // doesn't, or it restarts otaTrialBoots times without connecting, the board goes back to
+    // the firmware it had. 0 waits for ever (restarts still count).
+    uint32_t otaConfirmTimeoutMs = 5UL * 60UL * 1000UL;
+    uint8_t otaTrialBoots = 3;
 };
 
 class WbsktCommandBuilder {
@@ -92,6 +112,17 @@ public:
     // Report the state variables that changed. Numbers are kept as readings for charts.
     bool reportState(const JsonDocument& values);
 
+    // Take firmware updates from the console (sys.ota.update), before begin(). The version is
+    // reported as the "firmware" state variable on every connect. Every firmware you ship must
+    // call this too, or the board can only be updated over USB after that.
+    void enableOta(const char* firmwareVersion);
+    // Called before an update is downloaded; return false to refuse it (low battery, busy).
+    void onOtaRequest(std::function<bool(const WbsktOtaRequest&)> handler) { onOtaRequest_ = std::move(handler); }
+    // Called as an update goes: Accepted, Downloading with a percentage (loop() is blocked while it
+    // downloads), then a restart; Failed or Rejected if it didn't happen; Installed once the new
+    // firmware has connected.
+    void onOta(std::function<void(WbsktOtaState, uint8_t percent)> handler) { onOta_ = std::move(handler); }
+
     // Messages waiting to go out.
     size_t queuedMessages() const { return outbox_.size(); }
     // Messages dropped because the buffer was full.
@@ -130,6 +161,15 @@ private:
     void flushOutbox();
     void sendCapabilities();
     int64_t nowEpochMillis() const;
+    void checkOtaTrial();
+    void otaConnected();
+    void receiveOta(const char* commandId, JsonVariantConst payload);
+    void rejectOta(const char* commandId, const std::string& reason);
+    void runOta();
+    void rollBack();
+    void otaStatus(const char* commandId, WbsktOtaState state, int progress = -1, const char* version = nullptr,
+                   const char* error = nullptr);
+    void notifyOta(WbsktOtaState state, uint8_t percent);
 
     String deviceName_;
     String policyPin_;
@@ -159,6 +199,18 @@ private:
     uint32_t rejectedUpgrades_ = 0;
     bool attemptStarted_ = false;
 
+    String firmwareVersion_;
+    bool otaEnabled_ = false;
+    bool otaPending_ = false;
+    std::string otaCommandId_;
+    wbskt_core::OtaRequest otaRequest_;
+    // Set while new firmware is on trial: it has until otaConfirmTimeoutMs to connect.
+    bool otaTrial_ = false;
+    String otaTrialCommandId_;
+    String otaTrialVersion_;
+
+    std::function<bool(const WbsktOtaRequest&)> onOtaRequest_;
+    std::function<void(WbsktOtaState, uint8_t)> onOta_;
     MessageHandler onMessage_;
     EventHandler onConnected_;
     EventHandler onDisconnected_;

@@ -88,13 +88,20 @@ void stampSentAt(std::string& frame, int64_t epochMillis) {
     frame.insert(frame.size() - 1, field);
 }
 
-std::string encodeCapabilities(const DeviceInfo& device, const std::vector<Command>& commands) {
+std::string encodeCapabilities(const DeviceInfo& device, const std::vector<Command>& commands,
+                               const std::vector<std::string>& system) {
     JsonDocument doc;
     doc["type"] = kCapabilities;
     JsonObject payload = doc["payload"].to<JsonObject>();
     payload["agent"] = device.agent;
     payload["version"] = device.version;
     payload["os"] = device.os;
+    if (!system.empty()) {
+        JsonArray names = payload["system"].to<JsonArray>();
+        for (const std::string& name : system) {
+            names.add(name);
+        }
+    }
     JsonArray list = payload["capabilities"].to<JsonArray>();
     for (const Command& command : commands) {
         JsonObject entry = list.add<JsonObject>();
@@ -139,7 +146,9 @@ void readFrame(const char* data, size_t length, int64_t nowSeconds, Incoming& ou
         out.action = Action::Reply;
         return;
     }
-    if (isReserved(type)) {
+    // The one platform message that is a command: acked and judged for expiry like any other.
+    const bool system = equalsIgnoringCase(type, kOtaUpdate);
+    if (isReserved(type) && !system) {
         return;
     }
 
@@ -162,7 +171,7 @@ void readFrame(const char* data, size_t length, int64_t nowSeconds, Incoming& ou
         }
         out.reply = serialize(ack);
     }
-    out.action = Action::Deliver;
+    out.action = system ? Action::System : Action::Deliver;
 }
 
 }  // namespace wbskt_core
