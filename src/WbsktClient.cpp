@@ -19,9 +19,10 @@ constexpr const char* kPrefsSecret = "secret";
 // A socket handshake that hasn't finished by now has failed; the library doesn't always say so.
 constexpr unsigned long kConnectTimeoutMs = 20000;
 constexpr uint32_t kWifiPollMs = 1000;
-// The library's own reconnect is turned off: the client schedules every attempt itself.
+// The library's own reconnect is turned off once an attempt has started: the client schedules
+// every attempt itself.
 constexpr unsigned long kNeverReconnect = 0xFFFFFFFFUL;
-// A failed upgrade without a status (older library) counts against the token after this many.
+// A failed upgrade without a reason (WebSockets before 2.7.2) counts against the token after this many.
 constexpr uint32_t kUpgradeFailuresBeforeLogin = 3;
 
 uint32_t espRandom(uint32_t max) {
@@ -62,7 +63,6 @@ void WbsktClient::begin() {
     prefs_.end();
 
     socket_.onEvent([this](WStype_t type, uint8_t* payload, size_t length) { onSocketEvent(type, payload, length); });
-    socket_.setReconnectInterval(kNeverReconnect);
     failures_ = 0;
     state_ = State::Waiting;
     schedule(0);
@@ -95,6 +95,15 @@ void WbsktClient::loop() {
             return;
         case State::Connecting:
             socket_.loop();
+            if (!attemptStarted_) {
+                attemptStarted_ = true;
+                socket_.setReconnectInterval(kNeverReconnect);
+                // A refused TCP connect raises no event; don't wait out the timeout for it.
+                if (state_ == State::Connecting && !socket_.isConnected()) {
+                    attemptFailed();
+                    return;
+                }
+            }
             if (state_ == State::Connecting && millis() - waitStartedAt_ > kConnectTimeoutMs) {
                 // Leave Connecting first, so the disconnect event this raises isn't counted twice.
                 attemptFailed();
@@ -221,7 +230,10 @@ void WbsktClient::openSocket() {
     socket_.beginSslWithCA(config_.socketHost, config_.port, wbskt_core::kSocketPath, config_.rootCa, wbskt_core::kSubprotocol);
     authHeader_ = "Bearer " + token_;
     socket_.setAuthorization(authHeader_.c_str());
-    socket_.setReconnectInterval(kNeverReconnect);
+    // begin() zeroes the library's last-failure time, and it only connects once millis() minus that
+    // reaches the interval, so the interval must be 0 for the next loop() to make the attempt.
+    socket_.setReconnectInterval(0);
+    attemptStarted_ = false;
     state_ = State::Connecting;
     waitStartedAt_ = millis();
 }
@@ -244,8 +256,11 @@ void WbsktClient::onSocketEvent(WStype_t type, uint8_t* payload, size_t length) 
             if (state_ == State::Connected) {
                 connectionDropped();
             } else if (state_ == State::Connecting) {
-                const bool unauthorized = payload != nullptr && length >= 8 && memcmp(payload, "HTTP 401", 8) == 0;
-                if (unauthorized || ++rejectedUpgrades_ >= kUpgradeFailuresBeforeLogin) {
+                const wbskt_core::UpgradeFailure failure =
+                    wbskt_core::classifyUpgradeFailure(reinterpret_cast<const char*>(payload), length);
+                if (failure == wbskt_core::UpgradeFailure::TokenRefused ||
+                    (failure == wbskt_core::UpgradeFailure::Unknown &&
+                     ++rejectedUpgrades_ >= kUpgradeFailuresBeforeLogin)) {
                     token_ = "";
                     rejectedUpgrades_ = 0;
                 }

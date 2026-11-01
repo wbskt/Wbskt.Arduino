@@ -183,6 +183,18 @@ void reconnectCeilings() {
     CHECK(bottom.afterThrottle(5000) == 5000);
 }
 
+void upgradeFailures() {
+    using wbskt_core::UpgradeFailure;
+    using wbskt_core::classifyUpgradeFailure;
+    const auto classify = [](const char* reason) { return classifyUpgradeFailure(reason, strlen(reason)); };
+    CHECK(classify("HTTP 401") == UpgradeFailure::TokenRefused);
+    CHECK(classify("WebSocket handshake failed - HTTP 401") == UpgradeFailure::TokenRefused);
+    CHECK(classify("WebSocket handshake failed - HTTP 503") == UpgradeFailure::Other);
+    CHECK(classify("HTTP 4010") == UpgradeFailure::Other);
+    CHECK(classify("Connection lost") == UpgradeFailure::Other);
+    CHECK(classifyUpgradeFailure(nullptr, 0) == UpgradeFailure::Unknown);
+}
+
 }  // namespace
 
 int main() {
@@ -198,6 +210,7 @@ int main() {
     junkAndPlatformMessagesAreIgnored();
     outboxKeepsOrderAndDropsTheOldest();
     reconnectCeilings();
+    upgradeFailures();
     if (failures == 0) {
         std::printf("all host tests passed\n");
     }

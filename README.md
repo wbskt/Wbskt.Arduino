@@ -137,6 +137,21 @@ The library implements
 The parts with no hardware dependency, in `src/wbskt/`, have host tests: `make -C test/host` after
 cloning ArduinoJson into `test/host/ArduinoJson`.
 
+The whole client also runs against the
+[conformance suite](https://github.com/wbskt/Wbskt/tree/master/Tests/Conformance).
+`test/conformance` builds `WbsktClient` for Linux, using shims of the Arduino core, HTTPClient,
+Preferences and WebSockets in `test/conformance/shim/`, and CI runs the suite against it:
+
+```sh
+make -C test/conformance
+cd <wbskt/Wbskt>/Tests/Conformance
+WBSKT_HARNESS=<this repo>/test/conformance/wbskt-harness python -m pytest -v
+```
+
+The WebSockets shim copies the parts of the library's behaviour (2.7.3) that the client depends
+on: when `loop()` connects, which failures raise an event, and the reasons it gives. If a newer
+library changes any of these, change the shim too.
+
 ## License
 
 MIT
