@@ -32,9 +32,12 @@ struct DeviceInfo {
     std::string os;
 };
 
-// An application message. sentAt is left out when the clock isn't set, and the server uses
-// its arrival time instead.
-std::string encodeMessage(const char* type, JsonVariantConst payload, int64_t nowSeconds, uint16_t nowMillis);
+// An application message, without sentAt: that is added as it goes out (stampSentAt), so a
+// message queued before the clock was set can still carry the time it was made.
+std::string encodeMessage(const char* type, JsonVariantConst payload);
+// Adds "sentAt" to a frame from encodeMessage. Bytes it adds at most: kSentAtBytes.
+void stampSentAt(std::string& frame, int64_t epochMillis);
+constexpr size_t kSentAtBytes = 37;
 std::string encodeCapabilities(const DeviceInfo& device, const std::vector<Command>& commands);
 
 enum class Action {

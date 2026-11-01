@@ -72,14 +72,20 @@ UpgradeFailure classifyUpgradeFailure(const char* reason, size_t length) {
                : UpgradeFailure::Other;
 }
 
-std::string encodeMessage(const char* type, JsonVariantConst payload, int64_t nowSeconds, uint16_t nowMillis) {
+std::string encodeMessage(const char* type, JsonVariantConst payload) {
     JsonDocument doc;
     doc["type"] = type;
     doc["payload"] = payload;
-    if (nowSeconds >= kClockValidAfter) {
-        doc["sentAt"] = formatIsoTime(nowSeconds, nowMillis);
-    }
     return serialize(doc);
+}
+
+void stampSentAt(std::string& frame, int64_t epochMillis) {
+    if (frame.empty() || frame.back() != '}' || epochMillis < 0) {
+        return;
+    }
+    const std::string field = ",\"sentAt\":\"" +
+                              formatIsoTime(epochMillis / 1000, static_cast<uint16_t>(epochMillis % 1000)) + "\"";
+    frame.insert(frame.size() - 1, field);
 }
 
 std::string encodeCapabilities(const DeviceInfo& device, const std::vector<Command>& commands) {

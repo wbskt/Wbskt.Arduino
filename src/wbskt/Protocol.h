@@ -2,6 +2,7 @@
 #pragma once
 
 #include <stddef.h>
+#include <stdint.h>
 
 namespace wbskt_core {
 
@@ -24,6 +25,11 @@ constexpr int kStatusPending = 0;
 constexpr int kStatusRegistered = 1;
 
 constexpr const char* kCodeUnauthorized = "CLIENT_UNAUTHORIZED";
+
+// What the client sends at most: under the server's 10 a second with bursts of 100, leaving room for
+// acks, pongs and state reports.
+constexpr uint32_t kSendPerSecond = 8;
+constexpr uint32_t kSendBurst = 50;
 
 // Renew the access token this long before it expires.
 constexpr unsigned long kTokenRenewBeforeMs = 60UL * 1000UL;

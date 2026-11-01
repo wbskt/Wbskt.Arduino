@@ -7,12 +7,14 @@
 #include <Preferences.h>
 #include <WebSocketsClient.h>
 
+#include <atomic>
 #include <functional>
 #include <string>
 #include <vector>
 
 #include "wbskt/Frames.h"
 #include "wbskt/Outbox.h"
+#include "wbskt/RateLimit.h"
 #include "wbskt/Reconnect.h"
 
 using WbsktDataType = wbskt_core::DataType;
@@ -31,11 +33,21 @@ struct WbsktConfig {
     // PEM roots the hosts' certificates chain to. nullptr uses the Let's Encrypt roots, which the
     // hosted service and a default self-hosted install (Traefik with ACME) use.
     const char* rootCa = nullptr;
-    // Messages kept while offline. Each is a JSON string in RAM, so keep this small.
-    size_t offlineBufferSize = 32;
+    // RAM for messages waiting to go out (offline, or over the send rate), allocated once. Each
+    // message takes its JSON size plus 16 bytes; when full, the oldest go first.
+    size_t offlineBufferBytes = 16 * 1024;
     // NTP server for the clock that stamps sentAt and judges command expiry. nullptr if the
     // sketch sets the clock itself.
     const char* ntpServer = "pool.ntp.org";
+    // A WebSocket ping this often while connected; after heartbeatMisses pongs that don't come
+    // back within heartbeatTimeoutMs, the link counts as dead and the client reconnects.
+    // heartbeatIntervalMs = 0 turns it off.
+    uint32_t heartbeatIntervalMs = 20000;
+    uint32_t heartbeatTimeoutMs = 10000;
+    uint8_t heartbeatMisses = 2;
+    // Sign in on a FreeRTOS task, so loop() keeps running during the TLS handshake. false signs in
+    // inside loop(), which then blocks for a few seconds.
+    bool backgroundSignIn = true;
 };
 
 class WbsktCommandBuilder {
@@ -58,7 +70,7 @@ public:
 
     // Call once WiFi is set up. Connecting happens in loop().
     void begin();
-    // Call from loop() as often as possible. Logging in can block for a few seconds.
+    // Call from loop() as often as possible.
     void loop();
     void end();
 
@@ -80,37 +92,58 @@ public:
     // Report the state variables that changed. Numbers are kept as readings for charts.
     bool reportState(const JsonDocument& values);
 
-    // Messages dropped because the offline buffer was full.
+    // Messages waiting to go out.
+    size_t queuedMessages() const { return outbox_.size(); }
+    // Messages dropped because the buffer was full.
     size_t droppedMessages() const { return outbox_.dropped(); }
     // Discard the stored credentials, so the next connection registers again.
     void forgetCredentials();
 
 private:
-    enum class State { Stopped, Waiting, Connecting, Connected };
+    enum class State { Stopped, Waiting, SigningIn, Connecting, Connected };
+    enum class SignInStep { Register, Login };
 
-    bool ensureToken();
-    bool registerDevice();
-    bool login();
-    int postJson(const char* path, const JsonDocument& body, JsonDocument& response, uint32_t& retryAfterMs);
+    // One HTTPS call, made on the sign-in task or inline. Only the task writes it while in flight.
+    struct Exchange {
+        const char* path = nullptr;
+        std::string body;
+        int status = 0;
+        std::string response;
+        uint32_t retryAfterMs = 0;
+        std::atomic<bool> done{true};
+    };
+
+    static void signInTask(void* client);
+    void startSignIn();
+    void runExchange();
+    void finishSignIn();
+    void finishRegistration(int status, const JsonDocument& response);
+    void finishLogin(int status, const JsonDocument& response);
+    bool tokenValid() const;
     void openSocket();
     void onSocketEvent(WStype_t type, uint8_t* payload, size_t length);
     void connectionDropped();
     void attemptFailed();
     void schedule(uint32_t delayMs);
     bool enqueue(std::string frame);
+    bool transmit(std::string& frame, wbskt_core::Stamp stamp);
     void flushOutbox();
-    int64_t nowSeconds(uint16_t* millis = nullptr) const;
-    bool tokenValid() const;
+    void sendCapabilities();
+    int64_t nowEpochMillis() const;
 
     String deviceName_;
     String policyPin_;
     WbsktConfig config_;
     std::vector<wbskt_core::Command> commands_;
     wbskt_core::Outbox outbox_;
+    wbskt_core::TokenBucket sendRate_;
     wbskt_core::ReconnectPolicy policy_;
     wbskt_core::Incoming incoming_;
     WebSocketsClient socket_;
     Preferences prefs_;
+    Exchange exchange_;
+    SignInStep signInStep_ = SignInStep::Login;
+    std::string sending_;
 
     String clientRefId_;
     String secret_;

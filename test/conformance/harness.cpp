@@ -104,6 +104,15 @@ int main() {
     config.apiHost = apiHost.c_str();
     config.socketHost = socketHost.c_str();
     config.ntpServer = nullptr;
+    // "interval,timeout,misses" in ms, for test_esp32.py; the defaults take a minute to notice.
+    if (const char* heartbeat = getenv("WBSKT_HEARTBEAT")) {
+        unsigned interval = 0, timeout = 0, misses = 0;
+        if (sscanf(heartbeat, "%u,%u,%u", &interval, &timeout, &misses) == 3) {
+            config.heartbeatIntervalMs = interval;
+            config.heartbeatTimeoutMs = timeout;
+            config.heartbeatMisses = static_cast<uint8_t>(misses);
+        }
+    }
 
     const char* pin = getenv("WBSKT_POLICY_PIN");
     WbsktClient client(getenv("WBSKT_DEVICE_NAME"), pin != nullptr && *pin != '\0' ? pin : nullptr, config);

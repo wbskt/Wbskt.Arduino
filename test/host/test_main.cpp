@@ -11,6 +11,7 @@
 #include "../../src/wbskt/IsoTime.h"
 #include "../../src/wbskt/Outbox.h"
 #include "../../src/wbskt/Protocol.h"
+#include "../../src/wbskt/RateLimit.h"
 #include "../../src/wbskt/Reconnect.h"
 
 namespace {
@@ -61,15 +62,25 @@ void isoTime() {
 void messages() {
     JsonDocument payload;
     payload["celsius"] = 21.5;
+    std::string text = wbskt_core::encodeMessage("temperature", payload.as<JsonVariantConst>());
+    JsonDocument unstamped;
+    readJson(text, unstamped);
+    CHECK(unstamped["sentAt"].isNull());
+
+    const size_t before = text.size();
+    wbskt_core::stampSentAt(text, kNow * 1000 + 7);
+    CHECK(text.size() - before <= wbskt_core::kSentAtBytes);
     JsonDocument frame;
-    readJson(wbskt_core::encodeMessage("temperature", payload.as<JsonVariantConst>(), kNow, 7), frame);
+    readJson(text, frame);
     CHECK(std::strcmp(frame["type"], "temperature") == 0);
     CHECK(frame["payload"]["celsius"].as<double>() == 21.5);
     CHECK(std::strcmp(frame["sentAt"], "2026-10-31T12:00:00.007Z") == 0);
 
-    JsonDocument unstamped;
-    readJson(wbskt_core::encodeMessage("temperature", payload.as<JsonVariantConst>(), 5, 0), unstamped);
-    CHECK(unstamped["sentAt"].isNull());
+    std::string clockless = wbskt_core::encodeMessage("temperature", payload.as<JsonVariantConst>());
+    wbskt_core::stampSentAt(clockless, -1);
+    JsonDocument stillUnstamped;
+    readJson(clockless, stillUnstamped);
+    CHECK(stillUnstamped["sentAt"].isNull());
 }
 
 void capabilities() {
@@ -154,15 +165,76 @@ void junkAndPlatformMessagesAreIgnored() {
 }
 
 void outboxKeepsOrderAndDropsTheOldest() {
-    wbskt_core::Outbox outbox(2);
-    outbox.push("a");
-    outbox.push("b");
-    outbox.push("c");
+    constexpr size_t kEntry = wbskt_core::Outbox::kEntryOverhead;
+    // Room for exactly two four-byte messages.
+    wbskt_core::Outbox outbox(2 * (kEntry + 4));
+    CHECK(outbox.push("aaaa", {1000, 1}));
+    CHECK(outbox.push("bbbb", {-1, 2}));
+    CHECK(outbox.push("cccc", {3000, 3}));
     CHECK(outbox.size() == 2);
     CHECK(outbox.dropped() == 1);
-    CHECK(outbox.front() == "b");
+
+    std::string frame;
+    wbskt_core::Stamp stamp{};
+    outbox.front(frame, stamp);
+    CHECK(frame == "bbbb");
+    CHECK(stamp.epochMillis == -1);
+    CHECK(stamp.enqueuedAt == 2);
     outbox.pop();
-    CHECK(outbox.front() == "c");
+    outbox.front(frame, stamp);
+    CHECK(frame == "cccc");
+    CHECK(stamp.epochMillis == 3000);
+    outbox.pop();
+    CHECK(outbox.empty());
+    CHECK(outbox.bytesUsed() == 0);
+}
+
+void outboxWrapsAroundAndCountsBytes() {
+    wbskt_core::Outbox outbox(100);
+    std::string frame;
+    wbskt_core::Stamp stamp{};
+    // Odd sizes walk the entries across the end of the buffer many times.
+    for (int i = 0; i < 200; ++i) {
+        const std::string message(static_cast<size_t>(i % 37), static_cast<char>('a' + i % 26));
+        outbox.push(message, {i, static_cast<uint32_t>(i)});
+        CHECK(outbox.bytesUsed() <= outbox.capacity());
+        outbox.front(frame, stamp);
+        if (outbox.size() == 1) {
+            CHECK(frame == message);
+        }
+        if (i % 3 == 0) {
+            outbox.pop();
+        }
+    }
+    size_t last = 0;
+    while (!outbox.empty()) {
+        outbox.front(frame, stamp);
+        CHECK(static_cast<size_t>(stamp.epochMillis) >= last);
+        last = static_cast<size_t>(stamp.epochMillis);
+        CHECK(frame.size() == static_cast<size_t>(stamp.epochMillis % 37));
+        outbox.pop();
+    }
+
+    wbskt_core::Outbox tiny(10);
+    CHECK(!tiny.push("too big for it", {0, 0}));
+    CHECK(tiny.dropped() == 1);
+    CHECK(tiny.empty());
+}
+
+void sendRate() {
+    wbskt_core::TokenBucket bucket(10, 3);
+    CHECK(bucket.take(0));
+    CHECK(bucket.take(0));
+    CHECK(bucket.take(0));
+    CHECK(!bucket.take(0));
+    CHECK(!bucket.take(99));
+    CHECK(bucket.take(100));
+    CHECK(!bucket.take(100));
+    // A long pause refills only up to the burst.
+    CHECK(bucket.take(60000));
+    CHECK(bucket.take(60000));
+    CHECK(bucket.take(60000));
+    CHECK(!bucket.take(60000));
 }
 
 uint32_t ceilingRandom(uint32_t max) { return max; }
@@ -209,6 +281,8 @@ int main() {
     plainMessagesAreDeliveredWithoutAck();
     junkAndPlatformMessagesAreIgnored();
     outboxKeepsOrderAndDropsTheOldest();
+    outboxWrapsAroundAndCountsBytes();
+    sendRate();
     reconnectCeilings();
     upgradeFailures();
     if (failures == 0) {
