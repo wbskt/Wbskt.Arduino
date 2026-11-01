@@ -5,7 +5,9 @@
 // - a failed TCP connect raises no event;
 // - a refused upgrade raises WStype_DISCONNECTED with "HTTP <code>" when the answer carried
 //   Connection: upgrade, and "WebSocket handshake failed - HTTP <code>" when it did not;
-// - sendTXT() is false unless connected, and isConnected() is true from the TCP connect on.
+// - sendTXT() is false unless connected, and isConnected() is true from the TCP connect on;
+// - the heartbeat: a ping every interval while connected, and a disconnect once `misses` pongs in
+//   a row haven't come back within the timeout (WebSockets::handleHBTimeout).
 // The host may carry a port of its own ("127.0.0.1:6000"), which wins over the port argument.
 #pragma once
 
@@ -39,6 +41,12 @@ public:
     void setReconnectInterval(unsigned long interval) { reconnectInterval_ = interval; }
     void loop();
     bool sendTXT(const char* payload);
+    void enableHeartbeat(uint32_t pingInterval, uint32_t pongTimeout, uint8_t disconnectTimeoutCount) {
+        pingInterval_ = pingInterval;
+        pongTimeout_ = pongTimeout;
+        disconnectTimeoutCount_ = disconnectTimeoutCount;
+        pongReceived_ = false;
+    }
     bool isConnected() const { return status_ != Status::NotConnected; }
     void disconnect();
 
@@ -52,6 +60,7 @@ private:
     bool readAvailable();
     void dropConnection(const char* reason);
     void raise(WStype_t type, const uint8_t* payload, size_t length);
+    void heartbeat();
 
     Handler handler_;
     std::string host_;
@@ -64,4 +73,10 @@ private:
     Status status_ = Status::NotConnected;
     int fd_ = -1;
     std::string buffer_;
+    uint32_t pingInterval_ = 0;
+    uint32_t pongTimeout_ = 0;
+    uint8_t disconnectTimeoutCount_ = 0;
+    unsigned long lastPing_ = 0;
+    bool pongReceived_ = false;
+    uint8_t pongTimeoutCount_ = 0;
 };

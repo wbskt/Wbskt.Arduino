@@ -9,6 +9,7 @@
 #include <string>
 
 unsigned long millis();
+void delay(unsigned long ms);
 void configTime(long gmtOffset, int daylightOffset, const char* server);
 
 #define log_e(format, ...) fprintf(stderr, "E " format "\n", ##__VA_ARGS__)

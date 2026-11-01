@@ -7,6 +7,8 @@
 #include <WebSocketsClient.h>
 #include <WiFi.h>
 #include <esp_system.h>
+#include <freertos/FreeRTOS.h>
+#include <freertos/task.h>
 #include <fcntl.h>
 #include <netdb.h>
 #include <netinet/in.h>
@@ -21,6 +23,7 @@
 #include <fstream>
 #include <random>
 #include <sstream>
+#include <thread>
 
 EspClass ESP;
 WiFiClass WiFi;
@@ -131,6 +134,16 @@ unsigned long millis() {
     return static_cast<unsigned long>(
         std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now() - kStart).count());
 }
+
+void delay(unsigned long ms) { std::this_thread::sleep_for(std::chrono::milliseconds(ms)); }
+
+BaseType_t xTaskCreate(TaskFunction_t task, const char*, uint32_t, void* argument, UBaseType_t, TaskHandle_t*) {
+    std::thread(task, argument).detach();
+    return pdPASS;
+}
+
+// A FreeRTOS task never returns from vTaskDelete(nullptr); here the thread just ends after it.
+void vTaskDelete(TaskHandle_t) {}
 
 // The host clock is already set.
 void configTime(long, int, const char*) {}
@@ -279,6 +292,9 @@ void WebSocketsClient::beginSslWithCA(const char* host, uint16_t port, const cha
     authorization_.clear();
     buffer_.clear();
     lastConnectionFail_ = 0;
+    lastPing_ = 0;
+    pongReceived_ = false;
+    pongTimeoutCount_ = 0;
 }
 
 void WebSocketsClient::raise(WStype_t type, const uint8_t* payload, size_t length) {
@@ -308,6 +324,33 @@ void WebSocketsClient::loop() {
     }
     if (!open && status_ != Status::NotConnected) {
         dropConnection("Connection lost");
+        return;
+    }
+    if (status_ == Status::Connected) {
+        heartbeat();
+    }
+}
+
+void WebSocketsClient::heartbeat() {
+    if (pingInterval_ == 0) {
+        return;
+    }
+    if (millis() - lastPing_ > pingInterval_) {
+        if (!sendFrame(0x9, nullptr, 0)) {
+            dropConnection(nullptr);
+            return;
+        }
+        lastPing_ = millis();
+        pongReceived_ = false;
+    }
+    if (pongReceived_) {
+        pongTimeoutCount_ = 0;
+    } else if (millis() - lastPing_ > pongTimeout_) {
+        ++pongTimeoutCount_;
+        lastPing_ = millis() - pingInterval_ - 500;
+        if (disconnectTimeoutCount_ != 0 && pongTimeoutCount_ >= disconnectTimeoutCount_) {
+            dropConnection(nullptr);
+        }
     }
 }
 
@@ -437,6 +480,11 @@ void WebSocketsClient::readFrames() {
                 return;
             case 0x9:
                 sendFrame(0xA, reinterpret_cast<const uint8_t*>(data.data()), data.size());
+                raise(WStype_PING, reinterpret_cast<const uint8_t*>(data.data()), data.size());
+                break;
+            case 0xA:
+                pongReceived_ = true;
+                raise(WStype_PONG, reinterpret_cast<const uint8_t*>(data.data()), data.size());
                 break;
             default:
                 break;

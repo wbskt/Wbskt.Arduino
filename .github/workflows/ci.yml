@@ -37,10 +37,11 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: '3.13'
-      - name: Run the suite
+      - name: Run the suite, and this SDK's own scenarios with its fixtures
         working-directory: wbskt/Tests/Conformance
         run: |
           pip install -r requirements.txt
+          cp "$GITHUB_WORKSPACE/test/conformance/test_esp32.py" .
           WBSKT_HARNESS="$GITHUB_WORKSPACE/test/conformance/wbskt-harness" python -m pytest -v
 
   compile:
