@@ -187,6 +187,32 @@ bool Preferences::remove(const char* key) {
     return true;
 }
 
+uint8_t Preferences::getUChar(const char* key, uint8_t fallback) {
+    JsonDocument doc = loadStorage();
+    JsonVariantConst value = doc[name_][key];
+    return value.is<uint8_t>() ? value.as<uint8_t>() : fallback;
+}
+
+size_t Preferences::putUChar(const char* key, uint8_t value) {
+    if (!open_ || readOnly_) {
+        return 0;
+    }
+    JsonDocument doc = loadStorage();
+    doc[name_][key] = value;
+    saveStorage(doc);
+    return 1;
+}
+
+bool Preferences::clear() {
+    if (!open_ || readOnly_) {
+        return false;
+    }
+    JsonDocument doc = loadStorage();
+    doc.remove(name_);
+    saveStorage(doc);
+    return true;
+}
+
 // HTTPClient
 
 bool HTTPClient::begin(WiFiClientSecure&, const String& url) {

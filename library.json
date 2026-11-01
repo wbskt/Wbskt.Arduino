@@ -1,6 +1,6 @@
 {
   "name": "Wbskt",
-  "version": "1.0.0-alpha.3",
+  "version": "1.0.0-alpha.4",
   "description": "Connect an ESP32 to Wbskt: register with a policy PIN, send readings, take commands.",
   "keywords": "wbskt, iot, websocket, esp32",
   "repository": { "type": "git", "url": "https://github.com/wbskt/Wbskt.Arduino.git" },

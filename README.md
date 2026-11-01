@@ -157,6 +157,68 @@ burst of any queued messages. It is a good place to report your current state. `
 drops, and when `end()` closes it. Failed attempts to connect don't raise it. Every handler runs
 inside `wbskt.loop()`, on the sketch's own task.
 
+## Firmware updates (OTA)
+
+```cpp
+wbskt.enableOta("1.0.0");  // before begin()
+```
+
+With OTA on, the board takes `sys.ota.update` from the server and updates itself. The command
+carries a link to the firmware, not the firmware: a binary is 1–2 MB and a message is at most 64 KB.
+
+```json
+{ "type": "sys.ota.update", "commandId": "…",
+  "payload": { "url": "https://…/garage-relay-1.1.0.bin", "sha256": "<64 hex digits>", "version": "1.1.0", "size": 1212416 } }
+```
+
+`url` and `sha256` are required. `version` and `size` are optional. The console doesn't send this
+command yet ([wbskt/Wbskt#510](https://github.com/wbskt/Wbskt/issues/510)), but the library is
+ready for it.
+
+1. **Build** the new firmware with a higher version (Arduino IDE: Sketch → Export Compiled Binary;
+   PlatformIO: `.pio/build/<env>/firmware.bin`). Get its digest with `sha256sum firmware.bin`.
+2. **Host** the `.bin` anywhere the board can reach over HTTPS. Redirects are followed. The
+   download is checked against `rootCa`, so a host whose certificate isn't from Let's Encrypt
+   needs its roots in `otaRootCa`. GitHub release assets are one example.
+3. **Send** `sys.ota.update`. The board acks it and answers with `sys.ota.status` messages:
+   `accepted`, then `downloading`, then it restarts into the new firmware. Once that firmware has
+   connected, the board sends `installed` with the version. If the update can't go ahead, the
+   board answers `rejected`; if it goes wrong partway, `failed`. Both carry an `error`.
+
+What the board does on its own:
+
+- It **refuses** a command over plain `http`, one without a valid SHA-256, one bigger than the
+  OTA partition, and any command while OTA is off or another update is under way. `onOtaRequest`
+  can refuse one too, for example on low battery.
+- It **closes the socket** while it downloads, to free the heap a second TLS session needs, and
+  `loop()` is blocked until the download finishes (about 20–60 s). `onOta` reports progress.
+- It **checks the SHA-256** before the new firmware is made bootable. A wrong digest, a cut-off
+  download or a bad image leaves the running firmware in place. The board reconnects and reports
+  `failed`.
+- It **goes back** to the previous firmware if the new one doesn't connect within
+  `otaConfirmTimeoutMs` (5 minutes from boot), or restarts `otaTrialBoots` (3) times without
+  connecting. The old firmware then reports `failed`. The timer counts from boot whatever the
+  reason, so a WiFi outage right after an update rolls back too; the update can just be sent
+  again. A firmware that crashes before `begin()` isn't caught.
+- It **keeps the credentials**. NVS isn't touched, so the board signs in as the same client.
+- It reports the version as the `firmware` state variable on every connection, and lists `"ota"`
+  under `system` in its capabilities.
+
+An update replaces the whole program: your code, this library and the Arduino core all ship
+together, so you can also move a board to something else entirely. **Every firmware you ship must
+keep an update path**, `enableOta` or one of your own. A board running firmware without one can
+only be updated over USB after that.
+
+The partition table and bootloader can't change over the air. Build with a scheme that has two
+app partitions (Minimal SPIFFS, see [Install](#install)) before the first board goes out.
+
+On security: the download is HTTPS with verified certificates, and the digest is checked, so a
+swapped or damaged file is refused. Anyone who can send commands in the workspace can update the
+board. The image isn't signed, so a compromised host plus a matching digest in the command would
+get through; for that, see ESP32 Secure Boot (which can't be undone on the chip).
+
+See `examples/Ota` for a full sketch.
+
 ## Configuration
 
 Pass a `WbsktConfig` as the third constructor argument. Every field has a default, so set only what
@@ -181,6 +243,9 @@ WbsktClient wbskt("greenhouse-sensor", "483920", config);
 | `heartbeatIntervalMs` | `20000` | How often to ping the server while connected. `0` turns the heartbeat off. |
 | `heartbeatTimeoutMs` | `10000` | How long to wait for each pong. |
 | `heartbeatMisses` | `2` | Missed pongs in a row before the link counts as dead and the client reconnects. With the defaults a dead link is noticed within about 40 s. |
+| `otaRootCa` | `nullptr` | PEM roots for the host firmware is downloaded from. `nullptr` uses `rootCa`. |
+| `otaConfirmTimeoutMs` | `300000` | After an update, how long from boot the new firmware has to connect before the board goes back to the previous one. `0` waits for ever. |
+| `otaTrialBoots` | `3` | Restarts without connecting after an update before the board goes back. |
 | `backgroundSignIn` | `true` | Run registration and login on a short-lived FreeRTOS task, so `loop()` keeps running during the TLS handshake. `false` signs in inside `loop()`, which then blocks for 1–3 s. |
 
 ## API
@@ -198,6 +263,9 @@ WbsktClient wbskt("greenhouse-sensor", "483920", config);
 | `publishCapabilities()` | Sends the commands again, after adding some once connected. |
 | `onMessage(handler)` | Commands and messages from the server. |
 | `onConnected(handler)`, `onDisconnected(handler)` | Connection events. |
+| `enableOta(version)` | Takes firmware updates from the server, and reports `version` as the `firmware` state. |
+| `onOtaRequest(handler)` | Return `false` to refuse an update before it starts. |
+| `onOta(handler)` | Update progress: `Accepted`, `Downloading` with a percentage, `Installed`, `Failed`, `Rejected`. |
 | `queuedMessages()` | Messages waiting in the buffer. |
 | `droppedMessages()` | Messages dropped because the buffer was full, since boot. |
 | `forgetCredentials()` | Deletes the stored credentials, so the next connection registers again with the PIN. |
@@ -281,13 +349,17 @@ logs lines starting with `wbskt:`.
 | It connects, then drops every minute or so | Pongs aren't coming back in time. Raise `heartbeatTimeoutMs` on a slow link. |
 | `droppedMessages()` keeps rising | The board makes messages faster than 8 a second, or was offline longer than the buffer covers. Send less often, or raise `offlineBufferBytes`. |
 | The sketch doesn't fit | Pick the Minimal SPIFFS partition ([Install](#install)). |
+| An update is `rejected` with `no OTA partition` | The board was flashed with a scheme without OTA. Flash it once over USB with Minimal SPIFFS. |
+| An update `failed` with `download failed` | The board couldn't reach the URL over HTTPS or verify its certificate. Check the URL, and set `otaRootCa` for a host that doesn't use Let's Encrypt. |
 
 ## Protocol and tests
 
 The library implements
 [the device protocol](https://github.com/wbskt/Wbskt/blob/master/Docs/Device.Protocol.md): stored
 credentials, token reuse, `capabilities` first on every connection, ping/pong, command acks and
-expiry, the offline buffer with `sentAt`, and the jittered reconnect schedule.
+expiry, the offline buffer with `sentAt`, and the jittered reconnect schedule. `sys.ota.update` and
+`sys.ota.status` are this library's proposal for firmware updates; the server side is
+[wbskt/Wbskt#510](https://github.com/wbskt/Wbskt/issues/510).
 
 The parts with no hardware dependency, in `src/wbskt/`, have host tests. Run `make -C test/host`
 after cloning ArduinoJson into `test/host/ArduinoJson`.
@@ -297,7 +369,9 @@ The whole client also runs against the
 `test/conformance` builds `WbsktClient` for Linux over shims of the Arduino core, HTTPClient,
 Preferences, FreeRTOS and WebSockets, in `test/conformance/shim/`. `test/conformance/test_esp32.py`
 adds this library's own scenarios (the heartbeat, a large backlog under the send rate, background
-sign-in), using the suite's fixtures. CI runs both:
+sign-in, OTA updates and rollback), using the suite's fixtures. The OTA shim
+(`shim/OtaFlash.cpp`) keeps two fake partitions in the storage file and downloads nothing, so
+restarting the harness boots whichever one the last run chose. CI runs both:
 
 ```sh
 make -C test/conformance

@@ -9,6 +9,7 @@
 
 #include "../../src/wbskt/Frames.h"
 #include "../../src/wbskt/IsoTime.h"
+#include "../../src/wbskt/Ota.h"
 #include "../../src/wbskt/Outbox.h"
 #include "../../src/wbskt/Protocol.h"
 #include "../../src/wbskt/RateLimit.h"
@@ -96,6 +97,11 @@ void capabilities() {
     CHECK(std::strcmp(relay["parameters"][0]["label"], "on") == 0);
     CHECK(std::strcmp(relay["parameters"][0]["dataType"], "boolean") == 0);
     CHECK(relay["parameters"][0]["isRequired"].as<bool>());
+    CHECK(frame["payload"]["system"].isNull());
+
+    JsonDocument withOta;
+    readJson(wbskt_core::encodeCapabilities({"wbskt-arduino", "1.0.0", "ESP32"}, commands, {"ota"}), withOta);
+    CHECK(std::strcmp(withOta["payload"]["system"][0], "ota") == 0);
 }
 
 void pingIsAnsweredWithPong() {
@@ -162,6 +168,82 @@ void junkAndPlatformMessagesAreIgnored() {
         CHECK(in.action == wbskt_core::Action::Ignore);
         CHECK(in.reply.empty());
     }
+}
+
+const char* const kDigest = "9F86D081884C7D659A2FEAA0C55AD015A3BF4F1B2B0B822CD15D6C15B0F00A08";
+
+void otaUpdateIsAckedAndKeptForTheSdk() {
+    wbskt_core::Incoming in;
+    const char* command =
+        R"({"type":"sys.ota.update","payload":{"url":"https://x/fw.bin"},"commandId":"o1","expiresAt":"2026-10-31T12:01:00Z"})";
+    wbskt_core::readFrame(command, std::strlen(command), kNow, in);
+    CHECK(in.action == wbskt_core::Action::System);
+    CHECK(std::strcmp(in.commandId, "o1") == 0);
+    JsonDocument ack;
+    readJson(in.reply, ack);
+    CHECK(std::strcmp(ack["payload"]["commandId"], "o1") == 0);
+
+    const char* expired = R"({"type":"SYS.OTA.UPDATE","payload":{},"commandId":"o2","expiresAt":"2026-10-31T11:00:00Z"})";
+    wbskt_core::readFrame(expired, std::strlen(expired), kNow, in);
+    CHECK(in.action == wbskt_core::Action::Reply);
+    JsonDocument refused;
+    readJson(in.reply, refused);
+    CHECK(std::strcmp(refused["payload"]["refused"], "expired") == 0);
+}
+
+std::string otaProblem(const char* json, size_t slotBytes = 1966080) {
+    JsonDocument payload;
+    readJson(json, payload);
+    wbskt_core::OtaRequest request;
+    return wbskt_core::readOtaRequest(payload.as<JsonVariantConst>(), slotBytes, request);
+}
+
+void otaRequests() {
+    JsonDocument payload;
+    payload["url"] = "HTTPS://example.com/fw.bin";
+    payload["sha256"] = kDigest;
+    payload["version"] = "1.2.0";
+    payload["size"] = 1200000;
+    wbskt_core::OtaRequest request;
+    CHECK(wbskt_core::readOtaRequest(payload.as<JsonVariantConst>(), 1966080, request).empty());
+    CHECK(request.url == "HTTPS://example.com/fw.bin");
+    CHECK(request.version == "1.2.0");
+    CHECK(request.size == 1200000);
+
+    const std::string sha = std::string(R"(,"sha256":")") + kDigest + "\"";
+    CHECK(otaProblem(("{\"url\":\"https://x/a.bin\"" + sha + "}").c_str()).empty());
+    CHECK(otaProblem(R"({"sha256":"00"})") == "url is missing");
+    CHECK(otaProblem(("{\"url\":\"http://x/a.bin\"" + sha + "}").c_str()) == "url must start with https://");
+    CHECK(otaProblem(("{\"url\":\"https://\"" + sha + "}").c_str()) == "url must start with https://");
+    CHECK(otaProblem(R"({"url":"https://x/a.bin","sha256":"abc"})") == "sha256 must be 64 hex digits");
+    CHECK(otaProblem(("{\"url\":\"https://x/a.bin\"" + sha + "}").c_str(), 0).find("no OTA partition") !=
+          std::string::npos);
+    CHECK(otaProblem(("{\"url\":\"https://x/a.bin\"" + sha + ",\"size\":2000000}").c_str()).find("holds 1966080") !=
+          std::string::npos);
+    CHECK(otaProblem(("{\"url\":\"https://x/a.bin\"" + sha + ",\"size\":\"big\"}").c_str()) ==
+          "size must be a whole number of bytes");
+}
+
+void otaStatusFrames() {
+    JsonDocument frame;
+    readJson(wbskt_core::encodeOtaStatus("o1", wbskt_core::OtaState::Downloading, 140, "1.2.0"), frame);
+    CHECK(std::strcmp(frame["type"], "sys.ota.status") == 0);
+    CHECK(std::strcmp(frame["payload"]["commandId"], "o1") == 0);
+    CHECK(std::strcmp(frame["payload"]["state"], "downloading") == 0);
+    CHECK(frame["payload"]["progress"].as<int>() == 100);
+    CHECK(frame["payload"]["error"].isNull());
+
+    JsonDocument bare;
+    readJson(wbskt_core::encodeOtaStatus(nullptr, wbskt_core::OtaState::Rejected, -1, "", "no"), bare);
+    CHECK(bare["payload"]["commandId"].isNull());
+    CHECK(bare["payload"]["progress"].isNull());
+    CHECK(bare["payload"]["version"].isNull());
+    CHECK(std::strcmp(bare["payload"]["error"], "no") == 0);
+
+    const uint8_t bytes[] = {0x00, 0x9f, 0xff};
+    CHECK(wbskt_core::toHex(bytes, 3) == "009fff");
+    CHECK(wbskt_core::sameDigest("ABCdef", "abcDEF"));
+    CHECK(!wbskt_core::sameDigest("abc", "abcd"));
 }
 
 void outboxKeepsOrderAndDropsTheOldest() {
@@ -280,6 +362,9 @@ int main() {
     expiryIsNotJudgedWithoutAClock();
     plainMessagesAreDeliveredWithoutAck();
     junkAndPlatformMessagesAreIgnored();
+    otaUpdateIsAckedAndKeptForTheSdk();
+    otaRequests();
+    otaStatusFrames();
     outboxKeepsOrderAndDropsTheOldest();
     outboxWrapsAroundAndCountsBytes();
     sendRate();

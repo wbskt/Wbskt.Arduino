@@ -114,6 +114,10 @@ int main() {
         }
     }
 
+    if (const char* confirm = getenv("WBSKT_OTA_CONFIRM_MS")) {
+        config.otaConfirmTimeoutMs = static_cast<uint32_t>(strtoul(confirm, nullptr, 10));
+    }
+
     const char* pin = getenv("WBSKT_POLICY_PIN");
     WbsktClient client(getenv("WBSKT_DEVICE_NAME"), pin != nullptr && *pin != '\0' ? pin : nullptr, config);
     declareCommands(client, getenv("WBSKT_COMMANDS"));
@@ -129,6 +133,18 @@ int main() {
         } else {
             event["commandId"] = nullptr;
         }
+        emit(event);
+    });
+
+    // WBSKT_OTA is the firmware version, and turns OTA on.
+    if (const char* version = getenv("WBSKT_OTA")) {
+        client.enableOta(version);
+    }
+    client.onOta([](WbsktOtaState state, uint8_t percent) {
+        JsonDocument event;
+        event["event"] = "ota";
+        event["state"] = wbskt_core::otaStateName(state);
+        event["percent"] = percent;
         emit(event);
     });
 
