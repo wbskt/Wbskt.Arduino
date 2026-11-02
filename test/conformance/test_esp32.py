@@ -88,9 +88,8 @@ async def test_lists_ota_and_reports_the_firmware_version(api, socket_server, de
     await harness.expect("connected")
 
     capabilities = await socket_server.next_of("capabilities")
-    state = await socket_server.next_of("state.report")
     assert capabilities["payload"]["system"] == ["ota"]
-    assert state["payload"] == {"firmware": "1.0.0"}
+    assert capabilities["payload"]["firmwareVersion"] == "1.0.0"
 
 
 async def test_refuses_an_update_when_ota_is_off(api, socket_server, device):
@@ -145,6 +144,7 @@ async def test_confirms_the_update_once_the_new_firmware_connects(api, socket_se
     monkeypatch.setenv("WBSKT_OTA_INSTALL", "ok")
     old = await device()
     await old.expect("connected")
+    await socket_server.next_of("capabilities")
 
     await socket_server.send(0, ota_update("o4"))
     await old.expect("ota", state="downloading", percent=100)
@@ -154,15 +154,15 @@ async def test_confirms_the_update_once_the_new_firmware_connects(api, socket_se
     new = await device()
     await new.expect("ota", state="installed", timeout=RECONNECT)
     await new.expect("connected")
+    capabilities = await socket_server.next_of("capabilities", timeout=RECONNECT)
     installed = None
     while installed is None:
         status = await next_ota_status(socket_server)
         if status["state"] == "installed":
             installed = status
-    state = await socket_server.next_of("state.report")
 
     assert installed == {"commandId": "o4", "state": "installed", "progress": 100, "version": "1.1.0"}
-    assert state["payload"] == {"firmware": "1.1.0"}
+    assert capabilities["payload"]["firmwareVersion"] == "1.1.0"
 
 
 async def test_goes_back_when_the_new_firmware_never_connects(api, socket_server, device, monkeypatch):

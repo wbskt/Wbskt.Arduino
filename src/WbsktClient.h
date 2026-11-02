@@ -113,7 +113,7 @@ public:
     bool reportState(const JsonDocument& values);
 
     // Take firmware updates from the console (sys.ota.update), before begin(). The version is
-    // reported as the "firmware" state variable on every connect. Every firmware you ship must
+    // sent as "firmwareVersion" in capabilities on every connect. Every firmware you ship must
     // call this too, or the board can only be updated over USB after that.
     void enableOta(const char* firmwareVersion);
     // Called before an update is downloaded; return false to refuse it (low battery, busy).

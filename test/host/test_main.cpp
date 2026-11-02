@@ -88,7 +88,7 @@ void capabilities() {
     std::vector<wbskt_core::Command> commands;
     commands.push_back({"relay.set", "Switch the relay", {{"on", wbskt_core::DataType::Boolean, true, "", ""}}});
     JsonDocument frame;
-    readJson(wbskt_core::encodeCapabilities({"wbskt-arduino", "1.0.0", "ESP32 ESP32-S3"}, commands), frame);
+    readJson(wbskt_core::encodeCapabilities({"wbskt-arduino", "1.0.0", "ESP32 ESP32-S3", ""}, commands), frame);
     CHECK(std::strcmp(frame["type"], "capabilities") == 0);
     CHECK(std::strcmp(frame["payload"]["agent"], "wbskt-arduino") == 0);
     JsonVariantConst relay = frame["payload"]["capabilities"][0];
@@ -98,10 +98,15 @@ void capabilities() {
     CHECK(std::strcmp(relay["parameters"][0]["dataType"], "boolean") == 0);
     CHECK(relay["parameters"][0]["isRequired"].as<bool>());
     CHECK(frame["payload"]["system"].isNull());
+    CHECK(frame["payload"]["firmwareVersion"].isNull());
 
     JsonDocument withOta;
-    readJson(wbskt_core::encodeCapabilities({"wbskt-arduino", "1.0.0", "ESP32"}, commands, {"ota"}), withOta);
+    readJson(wbskt_core::encodeCapabilities({"wbskt-arduino", "1.0.0", "ESP32", ""}, commands, {"ota"}), withOta);
     CHECK(std::strcmp(withOta["payload"]["system"][0], "ota") == 0);
+
+    JsonDocument withVersion;
+    readJson(wbskt_core::encodeCapabilities({"wbskt-arduino", "1.0.0", "ESP32", "2.4.1"}, commands, {"ota"}), withVersion);
+    CHECK(std::strcmp(withVersion["payload"]["firmwareVersion"], "2.4.1") == 0);
 }
 
 void pingIsAnsweredWithPong() {
