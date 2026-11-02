@@ -30,6 +30,8 @@ struct DeviceInfo {
     std::string agent;
     std::string version;
     std::string os;
+    // The sketch's own version, sent as "firmwareVersion"; left out when empty.
+    std::string firmwareVersion;
 };
 
 // An application message, without sentAt: that is added as it goes out (stampSentAt), so a

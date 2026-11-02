@@ -201,8 +201,9 @@ What the board does on its own:
   reason, so a WiFi outage right after an update rolls back too; the update can just be sent
   again. A firmware that crashes before `begin()` isn't caught.
 - It **keeps the credentials**. NVS isn't touched, so the board signs in as the same client.
-- It reports the version as the `firmware` state variable on every connection, and lists `"ota"`
-  under `system` in its capabilities.
+- It sends the version as `firmwareVersion` in its capabilities on every connection, and lists
+  `"ota"` under `system`. It also still reports it as the `firmware` state variable, for servers
+  from before `firmwareVersion`.
 
 An update replaces the whole program: your code, this library and the Arduino core all ship
 together, so you can also move a board to something else entirely. **Every firmware you ship must

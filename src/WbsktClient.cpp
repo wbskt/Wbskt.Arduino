@@ -386,7 +386,8 @@ void WbsktClient::sendCapabilities() {
         system.push_back(wbskt_core::kSystemOta);
     }
     socket_.sendTXT(wbskt_core::encodeCapabilities(
-        {"wbskt-arduino", WBSKT_SDK_VERSION, std::string("ESP32 ") + ESP.getChipModel()}, commands_, system).c_str());
+        {"wbskt-arduino", WBSKT_SDK_VERSION, std::string("ESP32 ") + ESP.getChipModel(), firmwareVersion_.c_str()},
+        commands_, system).c_str());
 }
 
 void WbsktClient::enableOta(const char* firmwareVersion) {
@@ -432,6 +433,7 @@ void WbsktClient::otaConnected() {
         otaStatus(otaTrialCommandId_.c_str(), WbsktOtaState::Installed, 100, otaTrialVersion_.c_str());
         notifyOta(WbsktOtaState::Installed, 100);
     }
+    // Also the old "firmware" state variable, for servers that don't read firmwareVersion yet.
     if (otaEnabled_ && !firmwareVersion_.isEmpty()) {
         JsonDocument state;
         state["firmware"] = firmwareVersion_;

@@ -96,6 +96,9 @@ std::string encodeCapabilities(const DeviceInfo& device, const std::vector<Comma
     payload["agent"] = device.agent;
     payload["version"] = device.version;
     payload["os"] = device.os;
+    if (!device.firmwareVersion.empty()) {
+        payload["firmwareVersion"] = device.firmwareVersion;
+    }
     if (!system.empty()) {
         JsonArray names = payload["system"].to<JsonArray>();
         for (const std::string& name : system) {
