@@ -102,8 +102,17 @@ void WbsktClient::end() {
 }
 
 void WbsktClient::loop() {
-    if (otaTrial_ && config_.otaConfirmTimeoutMs > 0 && millis() > config_.otaConfirmTimeoutMs) {
-        rollBack();
+    if (otaTrial_ && config_.otaConfirmTimeoutMs > 0) {
+        // Only time with Wi-Fi up counts: a power cut that also took the router down must not roll
+        // back a good image that simply had no network to connect over.
+        const uint32_t now = millis();
+        if (WiFi.status() == WL_CONNECTED) {
+            otaTrialOnlineMs_ += now - otaTrialTickAt_;
+        }
+        otaTrialTickAt_ = now;
+        if (otaTrialOnlineMs_ > config_.otaConfirmTimeoutMs) {
+            rollBack();
+        }
     }
     switch (state_) {
         case State::Stopped:
@@ -419,6 +428,8 @@ void WbsktClient::checkOtaTrial() {
     prefs_.putUChar(kOtaBoots, boots);
     prefs_.end();
     otaTrial_ = true;
+    otaTrialTickAt_ = millis();
+    otaTrialOnlineMs_ = 0;
     if (boots > config_.otaTrialBoots) {
         rollBack();
     }
@@ -482,9 +493,10 @@ void WbsktClient::runOta() {
     otaStatus(commandId.c_str(), WbsktOtaState::Downloading, 0, request.version.c_str());
     flushOutbox();
     // The download needs a TLS session of its own, and the heap the socket's is holding. Leaving
-    // Connected first keeps the disconnect event from counting as a dropped link.
+    // Connected first keeps the disconnect event from counting as a dropped link; the close code
+    // tells the server this is an update, not the device going offline.
     state_ = State::Waiting;
-    socket_.disconnect();
+    socket_.disconnect(wbskt_core::kCloseUpdating);
     if (onDisconnected_) {
         onDisconnected_();
     }

@@ -29,7 +29,18 @@ enum WStype_t {
     WStype_PONG,
 };
 
-class WebSocketsClient {
+struct WSclient_t {};
+
+// The library's base, as far as a subclass reaches into it: clientDisconnect(client, code) sends a
+// close frame with that code, then drops the connection.
+class WebSockets {
+protected:
+    virtual ~WebSockets() = default;
+    void clientDisconnect(WSclient_t*, uint16_t code) { closeWith(code); }
+    virtual void closeWith(uint16_t code) = 0;
+};
+
+class WebSocketsClient : protected WebSockets {
 public:
     using Handler = std::function<void(WStype_t type, uint8_t* payload, size_t length)>;
 
@@ -48,7 +59,12 @@ public:
         pongReceived_ = false;
     }
     bool isConnected() const { return status_ != Status::NotConnected; }
-    void disconnect();
+    void disconnect() { closeWith(1000); }
+
+protected:
+    WSclient_t _client;
+    bool clientIsConnected(WSclient_t*) const { return isConnected(); }
+    void closeWith(uint16_t code) override;
 
 private:
     enum class Status { NotConnected, Header, Connected };
