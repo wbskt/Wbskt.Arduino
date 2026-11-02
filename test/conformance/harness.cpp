@@ -79,6 +79,20 @@ void handle(WbsktClient& client, const std::string& line) {
     if (name == "send") {
         event["type"] = op["type"];
         accepted = client.send(op["type"] | "", op["payload"].as<JsonVariantConst>());
+    } else if (name == "send-many") {
+        const int count = op["count"] | 0;
+        accepted = true;
+        for (int n = 0; n < count && accepted; n++) {
+            JsonDocument payload;
+            payload.set(n);
+            accepted = client.send(op["type"] | "", payload.as<JsonVariantConst>());
+        }
+        event["type"] = op["type"];
+        event["count"] = count;
+    } else if (name == "throw-next") {
+        // C++ handlers here can't throw (no exceptions on the ESP32 build); the scenario still sends malformed frames.
+        emit("armed");
+        return;
     } else if (name == "state") {
         event["type"] = "state.report";
         JsonDocument values;
