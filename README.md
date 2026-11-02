@@ -205,8 +205,7 @@ What the board does on its own:
   crashes before `begin()` isn't caught.
 - It **keeps the credentials**. NVS isn't touched, so the board signs in as the same client.
 - It sends the version as `firmwareVersion` in its capabilities on every connection, and lists
-  `"ota"` under `system`. It also still reports it as the `firmware` state variable, for servers
-  from before `firmwareVersion`.
+  `"ota"` under `system`.
 
 An update replaces the whole program: your code, this library and the Arduino core all ship
 together, so you can also move a board to something else entirely. **Every firmware you ship must
