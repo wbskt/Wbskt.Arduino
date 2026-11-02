@@ -553,13 +553,13 @@ bool WebSocketsClient::sendTXT(const char* payload) {
     return sendFrame(0x1, reinterpret_cast<const uint8_t*>(payload), strlen(payload));
 }
 
-void WebSocketsClient::disconnect() {
+void WebSocketsClient::closeWith(uint16_t code) {
     if (status_ == Status::NotConnected) {
         return;
     }
     if (status_ == Status::Connected) {
-        const uint8_t normal[2] = {0x03, 0xE8};
-        sendFrame(0x8, normal, 2);
+        const uint8_t payload[2] = {static_cast<uint8_t>(code >> 8), static_cast<uint8_t>(code & 0xFF)};
+        sendFrame(0x8, payload, 2);
     }
     dropConnection(nullptr);
 }

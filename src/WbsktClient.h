@@ -31,6 +31,17 @@ struct WbsktOtaRequest {
     size_t size;
 };
 
+// WebSocketsClient::disconnect() always closes with 1000; closing for an update needs a code of its own.
+class WbsktSocket : public WebSocketsClient {
+public:
+    using WebSocketsClient::disconnect;
+    void disconnect(uint16_t code) {
+        if (clientIsConnected(&_client)) {
+            WebSockets::clientDisconnect(&_client, code);
+        }
+    }
+};
+
 struct WbsktMessage {
     const char* type;
     JsonVariantConst payload;
@@ -63,9 +74,10 @@ struct WbsktConfig {
     // PEM roots for the host firmware is downloaded from, when it isn't covered by rootCa (GitHub
     // release assets aren't: they need the roots their CDN chains to). nullptr uses rootCa.
     const char* otaRootCa = nullptr;
-    // After an update the new firmware has this long, from boot, to connect to Wbskt. If it
+    // After an update the new firmware has this long with Wi-Fi up to connect to Wbskt. If it
     // doesn't, or it restarts otaTrialBoots times without connecting, the board goes back to
-    // the firmware it had. 0 waits for ever (restarts still count).
+    // the firmware it had. 0 waits for ever (restarts still count). The server shows the device as
+    // updating for the same 5 minutes.
     uint32_t otaConfirmTimeoutMs = 5UL * 60UL * 1000UL;
     uint8_t otaTrialBoots = 3;
 };
@@ -179,7 +191,7 @@ private:
     wbskt_core::TokenBucket sendRate_;
     wbskt_core::ReconnectPolicy policy_;
     wbskt_core::Incoming incoming_;
-    WebSocketsClient socket_;
+    WbsktSocket socket_;
     Preferences prefs_;
     Exchange exchange_;
     SignInStep signInStep_ = SignInStep::Login;
@@ -204,8 +216,10 @@ private:
     bool otaPending_ = false;
     std::string otaCommandId_;
     wbskt_core::OtaRequest otaRequest_;
-    // Set while new firmware is on trial: it has until otaConfirmTimeoutMs to connect.
+    // Set while new firmware is on trial: it has otaConfirmTimeoutMs of Wi-Fi time to connect.
     bool otaTrial_ = false;
+    uint32_t otaTrialOnlineMs_ = 0;
+    uint32_t otaTrialTickAt_ = 0;
     String otaTrialCommandId_;
     String otaTrialVersion_;
 

@@ -9,6 +9,9 @@ namespace wbskt_core {
 constexpr const char* kSubprotocol = "wbskt.v1";
 constexpr size_t kMaxMessageBytes = 64 * 1024;
 constexpr size_t kMaxTypeLength = 100;
+// The close code for closing to install a firmware update: the server shows the device as updating,
+// not offline, for up to 5 minutes or until it connects again.
+constexpr uint16_t kCloseUpdating = 4000;
 
 constexpr const char* kPing = "sys.ping";
 constexpr const char* kPong = "sys.pong";

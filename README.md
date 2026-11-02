@@ -191,15 +191,18 @@ What the board does on its own:
   OTA partition, and any command while OTA is off or another update is under way. `onOtaRequest`
   can refuse one too, for example on low battery.
 - It **closes the socket** while it downloads, to free the heap a second TLS session needs, and
-  `loop()` is blocked until the download finishes (about 20–60 s). `onOta` reports progress.
+  `loop()` is blocked until the download finishes (about 20–60 s). `onOta` reports progress
+  locally; the server sees no `progress`, since the socket is down. It closes with code 4000, so
+  the console shows the board as updating rather than offline, and offline workflow triggers
+  wait, for up to 5 minutes or until it connects again.
 - It **checks the SHA-256** before the new firmware is made bootable. A wrong digest, a cut-off
   download or a bad image leaves the running firmware in place. The board reconnects and reports
   `failed`.
 - It **goes back** to the previous firmware if the new one doesn't connect within
-  `otaConfirmTimeoutMs` (5 minutes from boot), or restarts `otaTrialBoots` (3) times without
-  connecting. The old firmware then reports `failed`. The timer counts from boot whatever the
-  reason, so a WiFi outage right after an update rolls back too; the update can just be sent
-  again. A firmware that crashes before `begin()` isn't caught.
+  `otaConfirmTimeoutMs` (5 minutes of WiFi being up), or restarts `otaTrialBoots` (3) times without
+  connecting. The old firmware then reports `failed`. Only time with WiFi up counts, so a router
+  that comes back slowly after a power cut doesn't roll back a good update. A firmware that
+  crashes before `begin()` isn't caught.
 - It **keeps the credentials**. NVS isn't touched, so the board signs in as the same client.
 - It sends the version as `firmwareVersion` in its capabilities on every connection, and lists
   `"ota"` under `system`. It also still reports it as the `firmware` state variable, for servers
@@ -245,7 +248,7 @@ WbsktClient wbskt("greenhouse-sensor", "483920", config);
 | `heartbeatTimeoutMs` | `10000` | How long to wait for each pong. |
 | `heartbeatMisses` | `2` | Missed pongs in a row before the link counts as dead and the client reconnects. With the defaults a dead link is noticed within about 40 s. |
 | `otaRootCa` | `nullptr` | PEM roots for the host firmware is downloaded from. `nullptr` uses `rootCa`. |
-| `otaConfirmTimeoutMs` | `300000` | After an update, how long from boot the new firmware has to connect before the board goes back to the previous one. `0` waits for ever. |
+| `otaConfirmTimeoutMs` | `300000` | After an update, how long with WiFi up the new firmware has to connect before the board goes back to the previous one. `0` waits for ever. |
 | `otaTrialBoots` | `3` | Restarts without connecting after an update before the board goes back. |
 | `backgroundSignIn` | `true` | Run registration and login on a short-lived FreeRTOS task, so `loop()` keeps running during the TLS handshake. `false` signs in inside `loop()`, which then blocks for 1–3 s. |
 
