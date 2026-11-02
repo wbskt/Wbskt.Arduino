@@ -444,12 +444,6 @@ void WbsktClient::otaConnected() {
         otaStatus(otaTrialCommandId_.c_str(), WbsktOtaState::Installed, 100, otaTrialVersion_.c_str());
         notifyOta(WbsktOtaState::Installed, 100);
     }
-    // Also the old "firmware" state variable, for servers that don't read firmwareVersion yet.
-    if (otaEnabled_ && !firmwareVersion_.isEmpty()) {
-        JsonDocument state;
-        state["firmware"] = firmwareVersion_;
-        reportState(state);
-    }
 }
 
 void WbsktClient::receiveOta(const char* commandId, JsonVariantConst payload) {
