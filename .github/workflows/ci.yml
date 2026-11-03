@@ -9,6 +9,16 @@ permissions:
   contents: read
 
 jobs:
+  lint:
+    # The checks the Arduino Library Manager runs on a submission. Switch library-manager to
+    # update once the library is listed in arduino/library-registry.
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: arduino/arduino-lint-action@v2
+        with:
+          library-manager: submit
+
   host-tests:
     runs-on: ubuntu-latest
     steps:

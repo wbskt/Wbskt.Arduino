@@ -49,10 +49,11 @@ and connects once someone approves it.
 
 ## Install
 
-- **Arduino IDE:** install the ESP32 boards (Espressif, 2.x or 3.x). Then add this library from a
-  ZIP, together with **ArduinoJson** (7.x) and **WebSockets** by Markus Sattler (2.6 or later; 2.7.2
-  or later recommended, see [How the connection behaves](#how-the-connection-behaves)) from the
-  Library Manager.
+- **Arduino IDE:** install the ESP32 boards (Espressif, 2.x or 3.x). Then search the Library
+  Manager for **Wbskt** and install it; the IDE offers to add **ArduinoJson** (7.x) and
+  **WebSockets** by Markus Sattler with it. WebSockets 2.7.2 or later is recommended, see
+  [How the connection behaves](#how-the-connection-behaves). This is a 0.9 beta: the device
+  protocol it speaks may still change before 1.0.
 - **PlatformIO:**
 
   ```ini
@@ -61,7 +62,7 @@ and connects once someone approves it.
   board = esp32dev
   framework = arduino
   lib_deps =
-      https://github.com/wbskt/Wbskt.Arduino.git
+      https://github.com/wbskt/Wbskt.Arduino.git#v0.9.0-beta.1
       bblanchon/ArduinoJson@^7.0.0
       links2004/WebSockets@^2.7.2
   board_build.partitions = min_spiffs.csv
