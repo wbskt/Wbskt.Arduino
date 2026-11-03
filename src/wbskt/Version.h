@@ -1,3 +1,3 @@
 #pragma once
 
-#define WBSKT_SDK_VERSION "1.0.0-alpha.4"
+#define WBSKT_SDK_VERSION "0.9.0-beta.1"
