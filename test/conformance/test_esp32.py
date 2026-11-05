@@ -8,9 +8,9 @@ import time
 RECONNECT = 25.0
 
 
-async def test_reconnects_when_pongs_stop_coming_back(api, socket_server, device, monkeypatch):
+async def test_reconnects_when_pongs_stop_coming_back(api, socket_server, client, monkeypatch):
     monkeypatch.setenv("WBSKT_HEARTBEAT", "1000,500,2")
-    harness = await device()
+    harness = await client()
     await harness.expect("connected")
     first = await socket_server.wait_connections(1)
 
@@ -22,9 +22,9 @@ async def test_reconnects_when_pongs_stop_coming_back(api, socket_server, device
     assert len(api.logins) == 1
 
 
-async def test_sends_a_large_backlog_in_order_under_the_rate_limit(api, socket_server, device):
+async def test_sends_a_large_backlog_in_order_under_the_rate_limit(api, socket_server, client):
     socket_server.down = True
-    harness = await device()
+    harness = await client()
     for n in range(150):
         await harness.command("send", type="reading", payload=n)
     for _ in range(150):
@@ -45,7 +45,7 @@ async def test_sends_a_large_backlog_in_order_under_the_rate_limit(api, socket_s
     assert times[-1] - times[0] >= (150 - 50) / 8 - 1.5
 
 
-async def test_keeps_looping_while_signing_in(api, socket_server, device):
+async def test_keeps_looping_while_signing_in(api, socket_server, client):
     handle = api.handle
 
     def slow(path, body):
@@ -54,7 +54,7 @@ async def test_keeps_looping_while_signing_in(api, socket_server, device):
         return handle(path, body)
 
     api.handle = slow
-    harness = await device()
+    harness = await client()
     await asyncio.sleep(0.5)
 
     started = asyncio.get_running_loop().time()
@@ -82,9 +82,9 @@ async def next_ota_status(socket_server, timeout: float = RECONNECT):
     return (await socket_server.next_of("sys.ota.status", timeout=timeout))["payload"]
 
 
-async def test_lists_ota_and_reports_the_firmware_version(api, socket_server, device, monkeypatch):
+async def test_lists_ota_and_reports_the_firmware_version(api, socket_server, client, monkeypatch):
     monkeypatch.setenv("WBSKT_OTA", "1.0.0")
-    harness = await device()
+    harness = await client()
     await harness.expect("connected")
 
     capabilities = await socket_server.next_of("capabilities")
@@ -92,8 +92,8 @@ async def test_lists_ota_and_reports_the_firmware_version(api, socket_server, de
     assert capabilities["payload"]["firmwareVersion"] == "1.0.0"
 
 
-async def test_refuses_an_update_when_ota_is_off(api, socket_server, device):
-    harness = await device()
+async def test_refuses_an_update_when_ota_is_off(api, socket_server, client):
+    harness = await client()
     await harness.expect("connected")
     capabilities = await socket_server.next_of("capabilities")
     assert "system" not in capabilities["payload"]
@@ -108,9 +108,9 @@ async def test_refuses_an_update_when_ota_is_off(api, socket_server, device):
     assert "does not take OTA" in status["error"]
 
 
-async def test_refuses_an_update_over_plain_http(api, socket_server, device, monkeypatch):
+async def test_refuses_an_update_over_plain_http(api, socket_server, client, monkeypatch):
     monkeypatch.setenv("WBSKT_OTA", "1.0.0")
-    harness = await device()
+    harness = await client()
     await harness.expect("connected")
 
     await socket_server.send(0, ota_update("o2", url="http://firmware.example/fw.bin"))
@@ -120,10 +120,10 @@ async def test_refuses_an_update_over_plain_http(api, socket_server, device, mon
     assert status == {"commandId": "o2", "state": "rejected", "error": "url must start with https://"}
 
 
-async def test_reports_a_failed_download_after_reconnecting(api, socket_server, device, monkeypatch):
+async def test_reports_a_failed_download_after_reconnecting(api, socket_server, client, monkeypatch):
     monkeypatch.setenv("WBSKT_OTA", "1.0.0")
     monkeypatch.setenv("WBSKT_OTA_INSTALL", "download answered HTTP 404")
-    harness = await device()
+    harness = await client()
     await harness.expect("connected")
 
     await socket_server.send(0, ota_update("o3"))
@@ -139,10 +139,10 @@ async def test_reports_a_failed_download_after_reconnecting(api, socket_server, 
     assert len(api.logins) == 1
 
 
-async def test_confirms_the_update_once_the_new_firmware_connects(api, socket_server, device, monkeypatch):
+async def test_confirms_the_update_once_the_new_firmware_connects(api, socket_server, client, monkeypatch):
     monkeypatch.setenv("WBSKT_OTA", "1.0.0")
     monkeypatch.setenv("WBSKT_OTA_INSTALL", "ok")
-    old = await device()
+    old = await client()
     await old.expect("connected")
     await socket_server.next_of("capabilities")
 
@@ -151,7 +151,7 @@ async def test_confirms_the_update_once_the_new_firmware_connects(api, socket_se
     await old.expect("restart")
 
     monkeypatch.setenv("WBSKT_OTA", "1.1.0")
-    new = await device()
+    new = await client()
     await new.expect("ota", state="installed", timeout=RECONNECT)
     await new.expect("connected")
     capabilities = await socket_server.next_of("capabilities", timeout=RECONNECT)
@@ -165,10 +165,10 @@ async def test_confirms_the_update_once_the_new_firmware_connects(api, socket_se
     assert capabilities["payload"]["firmwareVersion"] == "1.1.0"
 
 
-async def test_goes_back_when_the_new_firmware_never_connects(api, socket_server, device, monkeypatch):
+async def test_goes_back_when_the_new_firmware_never_connects(api, socket_server, client, monkeypatch):
     monkeypatch.setenv("WBSKT_OTA", "1.0.0")
     monkeypatch.setenv("WBSKT_OTA_INSTALL", "ok")
-    old = await device()
+    old = await client()
     await old.expect("connected")
     await socket_server.send(0, ota_update("o5"))
     await old.expect("restart")
@@ -176,13 +176,13 @@ async def test_goes_back_when_the_new_firmware_never_connects(api, socket_server
     socket_server.down = True
     monkeypatch.setenv("WBSKT_OTA", "1.1.0")
     monkeypatch.setenv("WBSKT_OTA_CONFIRM_MS", "1500")
-    broken = await device()
+    broken = await client()
     await broken.expect("restart", timeout=10.0)
 
     socket_server.down = False
     monkeypatch.setenv("WBSKT_OTA", "1.0.0")
     monkeypatch.delenv("WBSKT_OTA_CONFIRM_MS")
-    back = await device()
+    back = await client()
     await back.expect("ota", state="failed")
     await back.expect("connected", timeout=RECONNECT)
     failed = None

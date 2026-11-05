@@ -88,16 +88,16 @@ void stampSentAt(std::string& frame, int64_t epochMillis) {
     frame.insert(frame.size() - 1, field);
 }
 
-std::string encodeCapabilities(const DeviceInfo& device, const std::vector<Command>& commands,
+std::string encodeCapabilities(const ClientInfo& client, const std::vector<Command>& commands,
                                const std::vector<std::string>& system) {
     JsonDocument doc;
     doc["type"] = kCapabilities;
     JsonObject payload = doc["payload"].to<JsonObject>();
-    payload["agent"] = device.agent;
-    payload["version"] = device.version;
-    payload["os"] = device.os;
-    if (!device.firmwareVersion.empty()) {
-        payload["firmwareVersion"] = device.firmwareVersion;
+    payload["agent"] = client.agent;
+    payload["version"] = client.version;
+    payload["os"] = client.os;
+    if (!client.firmwareVersion.empty()) {
+        payload["firmwareVersion"] = client.firmwareVersion;
     }
     if (!system.empty()) {
         JsonArray names = payload["system"].to<JsonArray>();

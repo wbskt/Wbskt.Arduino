@@ -1,5 +1,5 @@
 // A token bucket: up to `burst` messages at once, then `perSecond` sustained. The client keeps under
-// the server's own limit (Docs/Device.Protocol.md §4: 10 a second, bursts of 100), which drops the
+// the server's own limit (Docs/Client.Protocol.md §4: 10 a second, bursts of 100), which drops the
 // excess silently.
 #pragma once
 

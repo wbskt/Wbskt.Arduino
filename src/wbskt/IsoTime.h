@@ -1,4 +1,4 @@
-// UTC instants as the server writes them ("2026-10-31T12:00:00.1234567Z") and as devices send them.
+// UTC instants as the server writes them ("2026-10-31T12:00:00.1234567Z") and as clients send them.
 #pragma once
 
 #include <stdint.h>

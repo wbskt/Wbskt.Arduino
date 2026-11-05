@@ -52,7 +52,7 @@ and connects once someone approves it.
 - **Arduino IDE:** install the ESP32 boards (Espressif, 2.x or 3.x). Then search the Library
   Manager for **Wbskt** and install it; the IDE offers to add **ArduinoJson** (7.x) and
   **WebSockets** by Markus Sattler with it. WebSockets 2.7.2 or later is recommended, see
-  [How the connection behaves](#how-the-connection-behaves). This is a 0.9 beta: the device
+  [How the connection behaves](#how-the-connection-behaves). This is a 0.9 beta: the client
   protocol it speaks may still change before 1.0.
 - **PlatformIO:**
 
@@ -276,10 +276,10 @@ WbsktClient wbskt("greenhouse-sensor", "483920", config);
 
 ## How the connection behaves
 
-**Credentials.** The board registers once with the PIN and keeps the device id and secret in NVS
+**Credentials.** The board registers once with the PIN and keeps the client id and secret in NVS
 (namespace `wbskt`). It never registers again while it has them, because each registration is a new
-device in the console and counts against the policy's limit. It discards them only when the server
-says they are no longer valid (`CLIENT_UNAUTHORIZED`: the device was deleted, or its secret
+client in the console and counts against the policy's limit. It discards them only when the server
+says they are no longer valid (`CLIENT_UNAUTHORIZED`: the client was deleted, or its secret
 rotated), and then registers again. With no credentials and no PIN, the client logs an error and
 stops.
 
@@ -324,7 +324,7 @@ send meanwhile are queued. Handlers and NVS writes still happen inside `wbskt.lo
 - **Messages** are at most 64 KB. In practice the WebSockets library receives frames of up to
   15 KB on ESP32 (`WEBSOCKETS_MAX_DATA_SIZE`), so keep commands from the server small.
 - **Commands sent while the board is offline** are not queued by the server. The console tells the
-  sender that the device is offline.
+  sender that the client is offline.
 - **Timekeeping:** `millis()` wraps after 49 days. Every timer in the library handles the wrap.
 
 ## Self-hosting
@@ -349,7 +349,7 @@ logs lines starting with `wbskt:`.
 |---|---|
 | `no stored credentials and no policy PIN` | First boot without a PIN. Pass the policy's PIN. |
 | `registration answered` with a 4xx code | The server refused the PIN. Check it, and that the policy is enabled and not full. |
-| `login answered 401 CLIENT_NOT_REGISTERED` | The policy needs approval. Approve the device in the console; the board connects on its next retry. |
+| `login answered 401 CLIENT_NOT_REGISTERED` | The policy needs approval. Approve the client in the console; the board connects on its next retry. |
 | It connects, then drops every minute or so | Pongs aren't coming back in time. Raise `heartbeatTimeoutMs` on a slow link. |
 | `droppedMessages()` keeps rising | The board makes messages faster than 8 a second, or was offline longer than the buffer covers. Send less often, or raise `offlineBufferBytes`. |
 | The sketch doesn't fit | Pick the Minimal SPIFFS partition ([Install](#install)). |
@@ -359,7 +359,7 @@ logs lines starting with `wbskt:`.
 ## Protocol and tests
 
 The library implements
-[the device protocol](https://github.com/wbskt/Wbskt/blob/master/Docs/Device.Protocol.md): stored
+[the client protocol](https://github.com/wbskt/Wbskt/blob/master/Docs/Client.Protocol.md): stored
 credentials, token reuse, `capabilities` first on every connection, ping/pong, command acks and
 expiry, the offline buffer with `sentAt`, and the jittered reconnect schedule. `sys.ota.update` and
 `sys.ota.status` are this library's proposal for firmware updates; the server side is

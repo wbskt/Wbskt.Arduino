@@ -29,7 +29,7 @@ jobs:
         run: make -C test/host
 
   conformance:
-    # The device protocol checklist (Tests/Conformance in wbskt/Wbskt), run against WbsktClient
+    # The client protocol checklist (Tests/Conformance in wbskt/Wbskt), run against WbsktClient
     # built for Linux over the shims in test/conformance/shim.
     runs-on: ubuntu-latest
     timeout-minutes: 20
