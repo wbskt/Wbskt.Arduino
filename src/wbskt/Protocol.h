@@ -1,4 +1,4 @@
-// The device protocol's names and limits. Docs/Device.Protocol.md in wbskt/Wbskt is the spec.
+// The client protocol's names and limits. Docs/Client.Protocol.md in wbskt/Wbskt is the spec.
 #pragma once
 
 #include <stddef.h>
@@ -9,7 +9,7 @@ namespace wbskt_core {
 constexpr const char* kSubprotocol = "wbskt.v1";
 constexpr size_t kMaxMessageBytes = 64 * 1024;
 constexpr size_t kMaxTypeLength = 100;
-// The close code for closing to install a firmware update: the server shows the device as updating,
+// The close code for closing to install a firmware update: the server shows the client as updating,
 // not offline, for up to 5 minutes or until it connects again.
 constexpr uint16_t kCloseUpdating = 4000;
 

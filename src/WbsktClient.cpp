@@ -55,8 +55,8 @@ WbsktCommandBuilder& WbsktCommandBuilder::param(const char* name, WbsktDataType 
     return *this;
 }
 
-WbsktClient::WbsktClient(const char* deviceName, const char* policyPin, WbsktConfig config)
-    : deviceName_(deviceName),
+WbsktClient::WbsktClient(const char* clientName, const char* policyPin, WbsktConfig config)
+    : clientName_(clientName),
       policyPin_(policyPin ? policyPin : ""),
       config_(config),
       outbox_(config.offlineBufferBytes),
@@ -178,7 +178,7 @@ void WbsktClient::startSignIn() {
         signInStep_ = SignInStep::Register;
         exchange_.path = wbskt_core::kRegisterPath;
         body["pin"] = policyPin_;
-        body["name"] = deviceName_;
+        body["name"] = clientName_;
     } else {
         signInStep_ = SignInStep::Login;
         exchange_.path = wbskt_core::kLoginPath;
@@ -257,7 +257,7 @@ void WbsktClient::finishRegistration(int status, const JsonDocument& response) {
         return;
     }
 
-    // Saved even while approval is pending: registering again would make a second device.
+    // Saved even while approval is pending: registering again would make a second client.
     clientRefId_ = ref;
     secret_ = secret;
     prefs_.begin(kPrefsNamespace, false);
@@ -463,7 +463,7 @@ void WbsktClient::receiveOta(const char* commandId, JsonVariantConst payload) {
     }
     if (onOtaRequest_ &&
         !onOtaRequest_({request.url.c_str(), request.sha256.c_str(), request.version.c_str(), request.size})) {
-        rejectOta(commandId, "declined by the device");
+        rejectOta(commandId, "declined by the client");
         return;
     }
     otaCommandId_ = commandId != nullptr ? commandId : "";
@@ -488,7 +488,7 @@ void WbsktClient::runOta() {
     flushOutbox();
     // The download needs a TLS session of its own, and the heap the socket's is holding. Leaving
     // Connected first keeps the disconnect event from counting as a dropped link; the close code
-    // tells the server this is an update, not the device going offline.
+    // tells the server this is an update, not the client going offline.
     state_ = State::Waiting;
     socket_.disconnect(wbskt_core::kCloseUpdating);
     if (onDisconnected_) {

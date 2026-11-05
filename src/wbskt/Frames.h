@@ -26,7 +26,7 @@ struct Command {
     std::vector<Parameter> parameters;
 };
 
-struct DeviceInfo {
+struct ClientInfo {
     std::string agent;
     std::string version;
     std::string os;
@@ -41,11 +41,11 @@ std::string encodeMessage(const char* type, JsonVariantConst payload);
 void stampSentAt(std::string& frame, int64_t epochMillis);
 constexpr size_t kSentAtBytes = 37;
 // system lists the platform commands the firmware takes, such as "ota"; left out when empty.
-std::string encodeCapabilities(const DeviceInfo& device, const std::vector<Command>& commands,
+std::string encodeCapabilities(const ClientInfo& client, const std::vector<Command>& commands,
                                const std::vector<std::string>& system = {});
 
 enum class Action {
-    Ignore,   // not a message, or a platform message the device has nothing to do for
+    Ignore,   // not a message, or a platform message the client has nothing to do for
     Reply,    // send `reply` and stop (a pong, or a refusal of an expired command)
     Deliver,  // send `reply` if not empty (the ack), then hand the message to the sketch
     System,   // send `reply` if not empty (the ack), then the SDK carries it out (sys.ota.update)

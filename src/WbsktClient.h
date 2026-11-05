@@ -1,5 +1,5 @@
 // Connect an ESP32 to Wbskt: register once with a policy PIN, keep the credentials in NVS, hold a
-// WebSocket open, send readings and take commands. Follows Docs/Device.Protocol.md in wbskt/Wbskt.
+// WebSocket open, send readings and take commands. Follows Docs/Client.Protocol.md in wbskt/Wbskt.
 #pragma once
 
 #include <Arduino.h>
@@ -76,7 +76,7 @@ struct WbsktConfig {
     const char* otaRootCa = nullptr;
     // After an update the new firmware has this long with Wi-Fi up to connect to Wbskt. If it
     // doesn't, or it restarts otaTrialBoots times without connecting, the board goes back to
-    // the firmware it had. 0 waits for ever (restarts still count). The server shows the device as
+    // the firmware it had. 0 waits for ever (restarts still count). The server shows the client as
     // updating for the same 5 minutes.
     uint32_t otaConfirmTimeoutMs = 5UL * 60UL * 1000UL;
     uint8_t otaTrialBoots = 3;
@@ -98,7 +98,7 @@ public:
     using MessageHandler = std::function<void(const WbsktMessage&)>;
     using EventHandler = std::function<void()>;
 
-    WbsktClient(const char* deviceName, const char* policyPin, WbsktConfig config = WbsktConfig());
+    WbsktClient(const char* clientName, const char* policyPin, WbsktConfig config = WbsktConfig());
 
     // Call once WiFi is set up. Connecting happens in loop().
     void begin();
@@ -183,7 +183,7 @@ private:
                    const char* error = nullptr);
     void notifyOta(WbsktOtaState state, uint8_t percent);
 
-    String deviceName_;
+    String clientName_;
     String policyPin_;
     WbsktConfig config_;
     std::vector<wbskt_core::Command> commands_;
