@@ -133,11 +133,7 @@ int main() {
     }
 
     const char* pin = getenv("WBSKT_POLICY_PIN");
-    // WBSKT_DEVICE_NAME is the variable's name in suites from before wbskt/Wbskt#574.
     const char* name = getenv("WBSKT_CLIENT_NAME");
-    if (name == nullptr) {
-        name = getenv("WBSKT_DEVICE_NAME");
-    }
     WbsktClient client(name, pin != nullptr && *pin != '\0' ? pin : nullptr, config);
     declareCommands(client, getenv("WBSKT_COMMANDS"));
     client.onConnected([] { emit("connected"); });
