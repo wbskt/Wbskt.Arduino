@@ -15,11 +15,10 @@ Closes #N
 ```
 
 - **type** is one of `feat`, `fix`, `perf`, `refactor`, `docs`, `test`, `chore`, `ci`, `build`.
-  Use `chore(db)` for a schema-only change.
 - **scope** names the part of the code the change touches (client, ota, buffer, conformance, examples, ci).
   Leave it out, as in `docs: …`, when a change spans the repo.
 - **summary** is lower case, in the imperative, with no full stop, and under about 72 characters:
-  `fix(engine): keep a drained backlog out of the message rate`.
+  `fix(buffer): size the offline buffer in bytes`.
 - One logical change per commit. Squash fix-ups before review rather than leaving "fix review" commits.
 - Older history also has `(feat): …` and unprefixed subjects. Don't copy them.
 
