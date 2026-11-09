@@ -57,7 +57,8 @@ jobs:
           WBSKT_HARNESS="$GITHUB_WORKSPACE/test/conformance/wbskt-harness" python -m pytest -v
 
   compile:
-    runs-on: ubuntu-latest
+    # compile-sketches pins Python 3.12.4, which setup-python has no build of for Ubuntu 26.04.
+    runs-on: ubuntu-24.04
     strategy:
       fail-fast: false
       matrix:
