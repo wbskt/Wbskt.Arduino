@@ -4,20 +4,22 @@ on:
   pull_request:
   push:
     branches: [master]
+  workflow_call:
 
 permissions:
   contents: read
 
 jobs:
   lint:
-    # The checks the Arduino Library Manager runs on a submission. Switch library-manager to
-    # update once the library is listed in arduino/library-registry.
+    # The checks the Arduino Library Manager runs on a new release of a listed library.
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       - uses: arduino/arduino-lint-action@v2
         with:
-          library-manager: submit
+          library-manager: update
+      - name: The three version strings agree
+        run: ./scripts/check-version.sh
 
   host-tests:
     runs-on: ubuntu-latest
@@ -90,6 +92,8 @@ jobs:
         with:
           python-version: '3.12'
       - run: pip install platformio
+      - name: Pack the library as the registry would take it
+        run: pio pkg pack -o "$RUNNER_TEMP"
       - name: Build the examples
         run: |
           for example in examples/*/; do
