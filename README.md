@@ -1,3 +1,5 @@
+<img src="https://raw.githubusercontent.com/wbskt/Wbskt.Arduino/master/assets/icon.png" alt="" width="64" height="64">
+
 # Wbskt for ESP32
 
 Connect an ESP32 to [Wbskt](https://wbskt.com). The board registers once with a policy PIN and
