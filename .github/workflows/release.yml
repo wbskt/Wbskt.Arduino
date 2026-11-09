@@ -1,0 +1,41 @@
+name: Release
+
+# The Arduino Library Manager reads tags on its own. This publishes the same version to the
+# PlatformIO registry, under the wbskt organisation, once the checks pass.
+on:
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: read
+
+jobs:
+  tag:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: The tag names the version in every manifest
+        run: ./scripts/check-version.sh "$GITHUB_REF_NAME"
+      - name: The tag is on master
+        run: git merge-base --is-ancestor "$GITHUB_SHA" origin/master
+
+  checks:
+    needs: tag
+    uses: ./.github/workflows/ci.yml
+
+  platformio:
+    needs: checks
+    runs-on: ubuntu-latest
+    environment: platformio
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: pip install platformio
+      - name: Publish to the PlatformIO registry
+        env:
+          PLATFORMIO_AUTH_TOKEN: ${{ secrets.PLATFORMIO_AUTH_TOKEN }}
+        run: pio pkg publish --owner wbskt --type library --no-interactive

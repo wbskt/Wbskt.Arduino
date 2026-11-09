@@ -50,3 +50,17 @@ pio ci examples/<name> --lib . --board esp32dev   # examples compile; full optio
 ```
 
 The conformance tests come from wbskt/Wbskt `master`, so a protocol change merges there first.
+
+## Releasing
+
+The version is in three files: `library.properties` (the Arduino Library Manager), `library.json`
+(PlatformIO) and `src/wbskt/Version.h` (what the firmware reports). `scripts/check-version.sh`
+fails CI when they differ. Bump all three in a PR, merge it, then make a release on `master`
+tagged `v` and the same version (`v0.9.0-beta.2`).
+
+- **Arduino Library Manager:** nothing to do. The indexer finds the new tag on its own within a day.
+- **PlatformIO:** `release.yml` checks the tag against the version and that it is on `master`, runs
+  the CI checks again, and publishes with `pio pkg publish --owner wbskt`. It runs in the
+  `platformio` environment with the `PLATFORMIO_AUTH_TOKEN` secret (from `pio account token`).
+
+A published version can't be replaced in either registry, so a bad release is fixed by the next one.
