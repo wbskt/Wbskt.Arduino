@@ -37,7 +37,8 @@
       ".github",
       "CLAUDE.md",
       "CONTRIBUTING.md",
-      "scripts"
+      "scripts",
+      "assets"
     ]
   }
 }
