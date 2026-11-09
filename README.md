@@ -62,8 +62,7 @@ and connects once someone approves it.
   board = esp32dev
   framework = arduino
   lib_deps =
-      https://github.com/wbskt/Wbskt.Arduino.git#v0.9.0-beta.1
-      bblanchon/ArduinoJson@^7.0.0
+      wbskt/Wbskt@^0.9.0-beta.1
       links2004/WebSockets@^2.7.2
   board_build.partitions = min_spiffs.csv
   ```
