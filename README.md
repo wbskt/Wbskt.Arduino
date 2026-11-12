@@ -64,10 +64,13 @@ and connects once someone approves it.
   board = esp32dev
   framework = arduino
   lib_deps =
-      wbskt/Wbskt@^0.9.0-beta.1
+      https://github.com/wbskt/Wbskt.Arduino.git#v0.9.0-beta.1
       links2004/WebSockets@^2.7.2
   board_build.partitions = min_spiffs.csv
   ```
+
+  The library isn't in the PlatformIO registry yet, so `lib_deps` names the Git tag. Once a release
+  is published there, `wbskt/Wbskt@^0.9.0-beta.2` works in its place.
 
 WiFi and TLS together come to about 1.3 MB, which is more than the default 1.2 MB app partition.
 Pick a bigger app partition that still allows OTA: **Minimal SPIFFS (1.9MB APP with OTA)** in the
