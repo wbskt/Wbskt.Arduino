@@ -152,6 +152,8 @@ private:
         std::string body;
         int status = 0;
         std::string response;
+        // Set only when the host sent a usable Retry-After.
+        bool hasRetryAfter = false;
         uint32_t retryAfterMs = 0;
         std::atomic<bool> done{true};
     };

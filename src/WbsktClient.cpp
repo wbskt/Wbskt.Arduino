@@ -205,6 +205,7 @@ void WbsktClient::signInTask(void* client) {
 void WbsktClient::runExchange() {
     exchange_.status = -1;
     exchange_.response.clear();
+    exchange_.hasRetryAfter = false;
     exchange_.retryAfterMs = 0;
 
     WiFiClientSecure tls;
@@ -223,7 +224,7 @@ void WbsktClient::runExchange() {
         const int status = http.POST(String(exchange_.body.c_str()));
         if (status > 0) {
             exchange_.response = http.getString().c_str();
-            exchange_.retryAfterMs = static_cast<uint32_t>(http.header("Retry-After").toInt()) * 1000UL;
+            exchange_.hasRetryAfter = wbskt_core::parseRetryAfterMs(http.header("Retry-After").c_str(), exchange_.retryAfterMs);
         }
         http.end();
         exchange_.status = status;
@@ -238,7 +239,13 @@ void WbsktClient::finishSignIn() {
     JsonDocument response;
     deserializeJson(response, exchange_.response);
     if (exchange_.status == 429) {
-        schedule(policy_.afterThrottle(exchange_.retryAfterMs));
+        if (exchange_.hasRetryAfter) {
+            schedule(policy_.afterThrottle(exchange_.retryAfterMs));
+        } else {
+            // No wait to honour: back off as after any failure, rather than retry within seconds.
+            log_w("wbskt: rate limited with no usable Retry-After");
+            attemptFailed();
+        }
         return;
     }
     if (signInStep_ == SignInStep::Register) {
