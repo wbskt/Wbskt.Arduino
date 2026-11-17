@@ -67,6 +67,14 @@ jobs:
           - esp32:esp32:esp32:PartitionScheme=min_spiffs
           - esp32:esp32:esp32s3:PartitionScheme=min_spiffs
           - esp32:esp32:esp32c3:PartitionScheme=min_spiffs
+        deps: [newest]
+        # The oldest versions library.properties and library.json accept, so the floors they claim
+        # are built and not only the newest releases.
+        include:
+          - fqbn: esp32:esp32:esp32:PartitionScheme=min_spiffs
+            deps: floors
+            arduinojson: '7.0.0'
+            websockets: '2.6.0'
     steps:
       - uses: actions/checkout@v4
       - uses: arduino/compile-sketches@v1
@@ -78,7 +86,9 @@ jobs:
           libraries: |
             - source-path: ./
             - name: ArduinoJson
+              version: ${{ matrix.arduinojson || 'latest' }}
             - name: WebSockets
+              version: ${{ matrix.websockets || 'latest' }}
           sketch-paths: |
             - examples
           cli-compile-flags: |
