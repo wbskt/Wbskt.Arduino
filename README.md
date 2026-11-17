@@ -88,7 +88,9 @@ wbskt.send("temperature", reading);
 it and the console shows it. It may be 1–100 characters. Types starting with `sys.` (in any case),
 plus `capabilities` and `state.report`, belong to the platform, and `send` returns `false` for them.
 
-`send` never waits for the network. It returns `true` once the message is sent or queued:
+`send` never waits for the network. It returns `true` once the message is sent or queued, and
+`false` when it was dropped: a message that has to wait but is larger than the whole offline buffer
+(or any such message with `offlineBufferBytes` at `0`) is never queued.
 
 - **Connected:** the message goes out at once, unless older messages are still waiting. A new
   message never overtakes the queue.
@@ -262,8 +264,8 @@ WbsktClient wbskt("greenhouse-sensor", "483920", config);
 | `loop()` | Does all the work. Call it from `loop()` as often as possible. |
 | `end()` | Closes the connection and stops. `begin()` starts again. |
 | `connected()` | `true` while the socket is open. |
-| `send(type, payload)` | Sends or queues a message. `false` for a reserved or empty type, or a message over 64 KB. |
-| `reportState(values)` | Sends or queues a state report. |
+| `send(type, payload)` | Sends or queues a message. `false` for a reserved or empty type, a message over 64 KB, or one that has to wait and is larger than the offline buffer. |
+| `reportState(values)` | Sends or queues a state report. `false` on the same terms as `send`. |
 | `addCommand(name, description)` | Declares a command. Chain `.param(...)` for its fields. |
 | `publishCapabilities()` | Sends the commands again, after adding some once connected. |
 | `onMessage(handler)` | Commands and messages from the server. |

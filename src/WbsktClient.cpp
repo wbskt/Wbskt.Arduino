@@ -563,8 +563,8 @@ bool WbsktClient::enqueue(std::string frame) {
     if (state_ == State::Connected && outbox_.empty() && sendRate_.take(millis()) && transmit(frame, stamp)) {
         return true;
     }
-    outbox_.push(frame, stamp);
-    return true;
+    // False when it is bigger than the whole offline buffer (or buffering is off): it was dropped.
+    return outbox_.push(frame, stamp);
 }
 
 bool WbsktClient::transmit(std::string& frame, wbskt_core::Stamp stamp) {
