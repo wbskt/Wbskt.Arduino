@@ -118,10 +118,12 @@ public:
     void publishCapabilities();
 
     // Send an application message, or queue it while offline. False if the type is reserved or
-    // empty, or the message is over 64 KB.
+    // empty, the message is over 64 KB, or it has to wait and is larger than the whole offline
+    // buffer (offlineBufferBytes), so it was dropped.
     bool send(const char* type, JsonVariantConst payload);
     bool send(const char* type, const JsonDocument& payload) { return send(type, payload.as<JsonVariantConst>()); }
-    // Report the state variables that changed. Numbers are kept as readings for charts.
+    // Report the state variables that changed. Numbers are kept as readings for charts. False on
+    // the same terms as send().
     bool reportState(const JsonDocument& values);
 
     // Take firmware updates from the console (sys.ota.update), before begin(). The version is
