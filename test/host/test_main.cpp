@@ -342,6 +342,20 @@ void reconnectCeilings() {
     CHECK(bottom.afterThrottle(5000) == 5000);
 }
 
+void retryAfter() {
+    uint32_t ms = 1;
+    CHECK(wbskt_core::parseRetryAfterMs("7", ms) && ms == 7000);
+    CHECK(wbskt_core::parseRetryAfterMs("0", ms) && ms == 0);
+    CHECK(wbskt_core::parseRetryAfterMs("99999999999", ms) && ms == 86400000UL);
+    ms = 1;
+    CHECK(!wbskt_core::parseRetryAfterMs("", ms));
+    CHECK(!wbskt_core::parseRetryAfterMs(nullptr, ms));
+    CHECK(!wbskt_core::parseRetryAfterMs("soon", ms));
+    CHECK(!wbskt_core::parseRetryAfterMs("-5", ms));
+    CHECK(!wbskt_core::parseRetryAfterMs("Wed, 21 Oct 2026 07:28:00 GMT", ms));
+    CHECK(ms == 1);
+}
+
 void upgradeFailures() {
     using wbskt_core::UpgradeFailure;
     using wbskt_core::classifyUpgradeFailure;
@@ -374,6 +388,7 @@ int main() {
     outboxWrapsAroundAndCountsBytes();
     sendRate();
     reconnectCeilings();
+    retryAfter();
     upgradeFailures();
     if (failures == 0) {
         std::printf("all host tests passed\n");
