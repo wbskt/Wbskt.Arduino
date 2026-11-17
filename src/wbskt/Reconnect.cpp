@@ -1,5 +1,7 @@
 #include "Reconnect.h"
 
+#include <string.h>
+
 namespace wbskt_core {
 
 uint32_t ReconnectPolicy::firstDelay(bool serverRestarting) const {
@@ -20,11 +22,23 @@ uint32_t ReconnectPolicy::afterThrottle(uint32_t retryAfterMs) const {
 
 bool parseRetryAfterMs(const char* header, uint32_t& ms) {
     constexpr uint32_t kMaxSeconds = 24UL * 60 * 60;
-    if (header == nullptr || *header == '\0') {
+    if (header == nullptr) {
+        return false;
+    }
+    // Surrounding spaces are allowed around a header value.
+    const char* begin = header;
+    while (*begin == ' ' || *begin == '\t') {
+        ++begin;
+    }
+    const char* end = begin + strlen(begin);
+    while (end > begin && (end[-1] == ' ' || end[-1] == '\t')) {
+        --end;
+    }
+    if (begin == end) {
         return false;
     }
     uint32_t seconds = 0;
-    for (const char* c = header; *c != '\0'; ++c) {
+    for (const char* c = begin; c != end; ++c) {
         if (*c < '0' || *c > '9') {
             return false;
         }

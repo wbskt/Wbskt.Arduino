@@ -301,7 +301,7 @@ same host come back spread out, not all at once:
 | First connection after `begin()` | none |
 | An open connection dropped | 0–10 s |
 | The *n*-th failed attempt in a row | 0 to min(60 s, 2 s × 2ⁿ) |
-| Registration or login answered 429 | `Retry-After` + 0–2 s |
+| Registration or login answered 429 | `Retry-After` + 0–2 s, or as a failed attempt when the header is missing or not in seconds |
 | WiFi not connected | checked again every second |
 
 A successful connection resets the failure count. The WebSockets library doesn't pass on close
