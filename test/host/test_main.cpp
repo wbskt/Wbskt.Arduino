@@ -347,7 +347,7 @@ void retryAfter() {
     CHECK(wbskt_core::parseRetryAfterMs("7", ms) && ms == 7000);
     CHECK(wbskt_core::parseRetryAfterMs("0", ms) && ms == 0);
     CHECK(wbskt_core::parseRetryAfterMs(" 12 ", ms) && ms == 12000);
-    CHECK(wbskt_core::parseRetryAfterMs("99999999999", ms) && ms == 86400000UL);
+    CHECK(wbskt_core::parseRetryAfterMs("99999999999", ms) && ms == 3600000UL);
     ms = 1;
     CHECK(!wbskt_core::parseRetryAfterMs("", ms));
     CHECK(!wbskt_core::parseRetryAfterMs("  ", ms));
