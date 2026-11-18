@@ -28,7 +28,8 @@ private:
 
 // A Retry-After header given in seconds, as the hosts send it, in milliseconds. False when the
 // header is missing, empty or not a whole number of seconds (an HTTP date included): a 429 without a
-// usable wait then counts as a failed attempt, so the back-off still grows. Capped at a day.
+// usable wait then counts as a failed attempt, so the back-off still grows. Capped at an hour, as
+// in the Python and .NET clients: a proxy asking for days would otherwise keep the board away.
 bool parseRetryAfterMs(const char* header, uint32_t& ms);
 
 }  // namespace wbskt_core

@@ -21,7 +21,7 @@ uint32_t ReconnectPolicy::afterThrottle(uint32_t retryAfterMs) const {
 }
 
 bool parseRetryAfterMs(const char* header, uint32_t& ms) {
-    constexpr uint32_t kMaxSeconds = 24UL * 60 * 60;
+    constexpr uint32_t kMaxSeconds = 60UL * 60;
     if (header == nullptr) {
         return false;
     }
