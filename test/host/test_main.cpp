@@ -401,8 +401,6 @@ void upgradeFailures() {
     CHECK(!wbskt_core::answerKeepsNewFirmware(0));
 }
 
-}  // namespace
-
 void clientNames() {
     CHECK(!wbskt_core::isValidClientName(nullptr));
     CHECK(!wbskt_core::isValidClientName(""));
@@ -454,6 +452,8 @@ void nonFiniteNumbers() {
     bare.set(-INFINITY);
     CHECK(wbskt_core::hasNonFiniteNumber(bare.as<JsonVariantConst>()));
 }
+
+}  // namespace
 
 int main() {
     reservedTypes();
