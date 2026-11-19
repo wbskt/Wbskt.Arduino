@@ -82,9 +82,9 @@ struct WbsktConfig {
     const char* otaRootCa = nullptr;
     // After an update the new firmware has this long with Wi-Fi up to reach Wbskt. If it doesn't,
     // or it restarts otaTrialBoots times without connecting, the board goes back to the firmware it
-    // had. Any HTTP answer from Wbskt, even an error during an outage, stops the clock: the new
-    // firmware's network works. 0 waits for ever (restarts still count). The server shows the client
-    // as updating for the same 5 minutes.
+    // had. A sign-in Wbskt accepts, or a 429 or 5xx while it is down, stops the clock. A refused key
+    // or any other 4xx doesn't, since that firmware may never connect. 0 waits for ever (restarts
+    // still count). The server shows the client as updating for the same 5 minutes.
     uint32_t otaConfirmTimeoutMs = 5UL * 60UL * 1000UL;
     uint8_t otaTrialBoots = 3;
 };

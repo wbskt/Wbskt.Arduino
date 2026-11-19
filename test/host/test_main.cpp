@@ -384,11 +384,20 @@ void upgradeFailures() {
     CHECK(classify("Connection lost") == UpgradeFailure::Other);
     CHECK(classifyUpgradeFailure(nullptr, 0) == UpgradeFailure::Unknown);
 
-    const auto answered = [](const char* reason) { return wbskt_core::upgradeWasAnswered(reason, strlen(reason)); };
-    CHECK(answered("WebSocket handshake failed - HTTP 503"));
-    CHECK(answered("HTTP 401"));
-    CHECK(!answered("Connection lost"));
-    CHECK(!wbskt_core::upgradeWasAnswered(nullptr, 0));
+    const auto status = [](const char* reason) { return wbskt_core::upgradeStatus(reason, strlen(reason)); };
+    CHECK(status("WebSocket handshake failed - HTTP 503") == 503);
+    CHECK(status("HTTP 401") == 401);
+    CHECK(status("HTTP 4010") == 0);
+    CHECK(status("HTTP 5") == 0);
+    CHECK(status("Connection lost") == 0);
+    CHECK(wbskt_core::upgradeStatus(nullptr, 0) == 0);
+
+    CHECK(wbskt_core::answerKeepsNewFirmware(200));
+    CHECK(wbskt_core::answerKeepsNewFirmware(429));
+    CHECK(wbskt_core::answerKeepsNewFirmware(503));
+    CHECK(!wbskt_core::answerKeepsNewFirmware(401));
+    CHECK(!wbskt_core::answerKeepsNewFirmware(403));
+    CHECK(!wbskt_core::answerKeepsNewFirmware(0));
 }
 
 }  // namespace

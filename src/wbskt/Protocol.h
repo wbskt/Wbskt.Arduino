@@ -58,7 +58,12 @@ enum class UpgradeFailure {
 // or "WebSocket handshake failed - HTTP 401" when the answer had no Connection: upgrade.
 UpgradeFailure classifyUpgradeFailure(const char* reason, size_t length);
 
-// Whether that reason carries an HTTP status: the server answered, so the network to it works.
-bool upgradeWasAnswered(const char* reason, size_t length);
+// The HTTP status in that reason, or 0 when the server never answered.
+int upgradeStatus(const char* reason, size_t length);
+
+// Whether an answer from Wbskt with this status lets firmware on trial stop its clock: a success, or
+// the service saying it is busy or down. A 4xx such as a refused key may mean the new firmware
+// itself is wrong, so the clock keeps running.
+bool answerKeepsNewFirmware(int status);
 
 }  // namespace wbskt_core

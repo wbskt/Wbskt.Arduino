@@ -270,7 +270,7 @@ void WbsktClient::finishSignIn() {
     if (state_ != State::SigningIn) {
         return;
     }
-    if (exchange_.status > 0) {
+    if (wbskt_core::answerKeepsNewFirmware(exchange_.status)) {
         otaReachedHost();
     }
     JsonDocument response;
@@ -376,7 +376,8 @@ void WbsktClient::onSocketEvent(WStype_t type, uint8_t* payload, size_t length) 
             } else if (state_ == State::Connecting) {
                 const wbskt_core::UpgradeFailure failure =
                     wbskt_core::classifyUpgradeFailure(reinterpret_cast<const char*>(payload), length);
-                if (wbskt_core::upgradeWasAnswered(reinterpret_cast<const char*>(payload), length)) {
+                if (wbskt_core::answerKeepsNewFirmware(
+                        wbskt_core::upgradeStatus(reinterpret_cast<const char*>(payload), length))) {
                     otaReachedHost();
                 }
                 if (failure == wbskt_core::UpgradeFailure::TokenRefused ||
@@ -492,8 +493,8 @@ void WbsktClient::checkOtaTrial() {
 }
 
 void WbsktClient::otaReachedHost() {
-    // Wbskt answered, even if only with an error during an outage: this firmware's network works, so
-    // waiting longer for the connection is no reason to go back. Restarts still count.
+    // Wbskt accepted this firmware's sign-in or said it is down, so its network works and waiting
+    // longer for the connection is no reason to go back. Restarts still count.
     if (otaTrial_ && !otaTrialReachedHost_) {
         otaTrialReachedHost_ = true;
         log_i("wbskt: the new firmware reached Wbskt; keeping it while it waits to connect");
