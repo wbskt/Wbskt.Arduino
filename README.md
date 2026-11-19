@@ -202,11 +202,14 @@ What the board does on its own:
 - It **checks the SHA-256** before the new firmware is made bootable. A wrong digest, a cut-off
   download or a bad image leaves the running firmware in place. The board reconnects and reports
   `failed`.
-- It **goes back** to the previous firmware if the new one doesn't connect within
+- It **goes back** to the previous firmware if the new one can't reach Wbskt within
   `otaConfirmTimeoutMs` (5 minutes of WiFi being up), or restarts `otaTrialBoots` (3) times without
   connecting. The old firmware then reports `failed`. Only time with WiFi up counts, so a router
-  that comes back slowly after a power cut doesn't roll back a good update. A firmware that
-  crashes before `begin()` isn't caught.
+  that comes back slowly after a power cut doesn't roll back a good update, and any HTTP answer
+  from Wbskt, even an error while the service is down, stops the clock: the new firmware's network
+  works, so it stays until it connects. What rolls back is a firmware that can't get through at
+  all (no TLS, no DNS, a broken WiFi stack) or that keeps crashing. A firmware that crashes before
+  `begin()` isn't caught.
 - It **keeps the credentials**. NVS isn't touched, so the board signs in as the same client.
 - It sends the version as `firmwareVersion` in its capabilities on every connection, and lists
   `"ota"` under `system`.

@@ -80,10 +80,11 @@ struct WbsktConfig {
     // PEM roots for the host firmware is downloaded from, when it isn't covered by rootCa (GitHub
     // release assets aren't: they need the roots their CDN chains to). nullptr uses rootCa.
     const char* otaRootCa = nullptr;
-    // After an update the new firmware has this long with Wi-Fi up to connect to Wbskt. If it
-    // doesn't, or it restarts otaTrialBoots times without connecting, the board goes back to
-    // the firmware it had. 0 waits for ever (restarts still count). The server shows the client as
-    // updating for the same 5 minutes.
+    // After an update the new firmware has this long with Wi-Fi up to reach Wbskt. If it doesn't,
+    // or it restarts otaTrialBoots times without connecting, the board goes back to the firmware it
+    // had. Any HTTP answer from Wbskt, even an error during an outage, stops the clock: the new
+    // firmware's network works. 0 waits for ever (restarts still count). The server shows the client
+    // as updating for the same 5 minutes.
     uint32_t otaConfirmTimeoutMs = 5UL * 60UL * 1000UL;
     uint8_t otaTrialBoots = 3;
 };
@@ -185,6 +186,7 @@ private:
     void openSocket();
     void onSocketEvent(WStype_t type, uint8_t* payload, size_t length);
     void connectionDropped();
+    void otaReachedHost();
     void attemptFailed();
     void schedule(uint32_t delayMs);
     bool enqueue(std::string frame);
@@ -238,6 +240,7 @@ private:
     // Set while new firmware is on trial: it has otaConfirmTimeoutMs of Wi-Fi time to connect.
     bool otaTrial_ = false;
     uint32_t otaTrialOnlineMs_ = 0;
+    bool otaTrialReachedHost_ = false;
     uint32_t otaTrialTickAt_ = 0;
     String otaTrialCommandId_;
     String otaTrialVersion_;

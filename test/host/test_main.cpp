@@ -383,6 +383,12 @@ void upgradeFailures() {
     CHECK(classify("HTTP 4010") == UpgradeFailure::Other);
     CHECK(classify("Connection lost") == UpgradeFailure::Other);
     CHECK(classifyUpgradeFailure(nullptr, 0) == UpgradeFailure::Unknown);
+
+    const auto answered = [](const char* reason) { return wbskt_core::upgradeWasAnswered(reason, strlen(reason)); };
+    CHECK(answered("WebSocket handshake failed - HTTP 503"));
+    CHECK(answered("HTTP 401"));
+    CHECK(!answered("Connection lost"));
+    CHECK(!wbskt_core::upgradeWasAnswered(nullptr, 0));
 }
 
 }  // namespace
