@@ -246,7 +246,7 @@ WbsktClient wbskt("greenhouse-sensor", "483920", config);
 | `port` | `443` | Port for both hosts. |
 | `rootCa` | `nullptr` | PEM root certificates the hosts chain to. `nullptr` uses Let's Encrypt's ISRG Root X1 and X2, which the hosted service and a default self-hosted install use. TLS is always verified. |
 | `offlineBufferBytes` | `16384` | RAM for messages waiting to go out, allocated once in the constructor. Each message takes its JSON size plus 16 bytes. A 60-byte reading takes 76, so the default holds about 200 of them: half an hour of one reading every 10 s. `0` turns buffering off, and anything that can't be sent at once is dropped. |
-| `ntpServer` | `"pool.ntp.org"` | NTP server that sets the clock for `sentAt` and command expiry. `nullptr` if the sketch sets the clock itself (`configTime`, a GPS or an RTC). |
+| `ntpServer` | `"pool.ntp.org"` | NTP server that sets the clock for `sentAt` and command expiry. Not used when the sketch already started SNTP, and `nullptr` if it sets the clock some other way (a GPS or an RTC). The library never changes the time zone. |
 | `heartbeatIntervalMs` | `20000` | How often to ping the server while connected. `0` turns the heartbeat off. |
 | `heartbeatTimeoutMs` | `10000` | How long to wait for each pong. |
 | `heartbeatMisses` | `2` | Missed pongs in a row before the link counts as dead and the client reconnects. With the defaults a dead link is noticed within about 40 s. |
