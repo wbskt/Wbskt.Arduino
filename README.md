@@ -53,8 +53,7 @@ and connects once someone approves it.
 
 - **Arduino IDE:** install the ESP32 boards (Espressif, 2.x or 3.x). Then search the Library
   Manager for **Wbskt** and install it; the IDE offers to add **ArduinoJson** (7.x) and
-  **WebSockets** by Markus Sattler with it. WebSockets 2.7.2 or later is recommended, see
-  [How the connection behaves](#how-the-connection-behaves). This is a 0.9 beta: the client
+  **WebSockets** by Markus Sattler (2.7.2 or later) with it. This is a 0.9 beta: the client
   protocol it speaks may still change before 1.0.
 - **PlatformIO:**
 
@@ -215,12 +214,13 @@ What the board does on its own:
 - It **goes back** to the previous firmware if the new one can't reach Wbskt within
   `otaConfirmTimeoutMs` (5 minutes of WiFi being up), or restarts `otaTrialBoots` (3) times without
   connecting. The old firmware then reports `failed`. Only time with WiFi up counts, so a router
-  that comes back slowly after a power cut doesn't roll back a good update. A sign-in Wbskt
-  accepts, or a 429 or 5xx while the service is down, stops the clock: the new firmware's network
-  works, so it stays until it connects. A refused key or any other 4xx doesn't, so a firmware built
-  with the wrong key still goes back. What also rolls back is a firmware that can't get through at
-  all (no TLS, no DNS, a broken WiFi stack) or that keeps crashing. A firmware that crashes before
-  `begin()` isn't caught.
+  that comes back slowly after a power cut doesn't roll back a good update. Nor does time Wbskt
+  spends down: the clock pauses while sign-ins or the socket answer 429 or 5xx (the new firmware's
+  network works; it is waiting on Wbskt) and runs again once an attempt fails any other way. A
+  sign-in Wbskt accepts doesn't stop the clock, since only connecting proves the firmware can take
+  the next update. So a firmware with a wrong socket host, a broken TLS setup or the wrong key still
+  goes back. So does one that can't get through at all (no TLS, no DNS, a broken WiFi stack) or that
+  keeps crashing. A firmware that crashes before `begin()` isn't caught.
 - It **keeps the credentials**. NVS isn't touched, so the board signs in as the same client.
 - It sends the version as `firmwareVersion` in its capabilities on every connection, and lists
   `"ota"` under `system`.
@@ -284,6 +284,8 @@ WbsktClient wbskt("greenhouse-sensor", "483920", config);
 | `publishCapabilities()` | Sends the commands again, after adding some once connected. |
 | `onMessage(handler)` | Commands and messages from the server. |
 | `onConnected(handler)`, `onDisconnected(handler)` | Connection events. |
+| `onStopped(handler)` | Called with a reason when the client stops for good because no retry could work: `CLIENT_UNAUTHORIZED` (deleted, or secret rotated), `POLICY_NOT_FOUND` or `REGISTRATION_PIN_REQUIRED` (wrong PIN), `CLIENT_NAME_INVALID`, or `NO_POLICY_PIN`. Use it to show the fault or take new credentials. |
+| `stopReason()` | That reason while stopped for good, `nullptr` otherwise. |
 | `enableOta(version)` | Takes firmware updates from the server, and reports `version` as `firmwareVersion` in its capabilities. |
 | `onOtaRequest(handler)` | Return `false` to refuse an update before it starts. |
 | `onOta(handler)` | Update progress: `Accepted`, `Downloading` with a percentage, `Installed`, `Failed`, `Rejected`. |
@@ -302,14 +304,16 @@ client in the console and counts against the policy's limit. Not even when the s
 bring a deleted board back as a new client. The client keeps them, logs an error and stops. To go
 on, call `setCredentials(clientRefId(), newSecret)` with the secret the console showed, or
 `forgetCredentials()` to register again with the PIN (a deleted board, or a fresh install), then
-`begin()`. With no credentials and no PIN, the client logs an error and stops.
+`begin()`. With no credentials and no PIN, the client logs an error and stops. The error log is
+silent at the default Core Debug Level, so a sketch that has to notice (to blink an LED, or enter a
+provisioning mode) uses `onStopped()` or `stopReason()`: `connected()` is false both while
+reconnecting and once stopped.
 
 **Token.** Login returns an access token, which is reused for every reconnect until a minute before
 it expires (an hour today). The board logs in again only then, or when the socket refuses the token
 with a 401. A refusal for any other reason, such as a 503 while the socket host restarts, keeps the
-token. That way a server restart doesn't turn into a login storm. WebSockets before 2.7.2 doesn't
-say why an upgrade failed, so with those versions the client drops the token after three failed
-upgrades in a row.
+token. That way a server restart doesn't turn into a login storm. An upgrade that fails without the
+library saying why counts too: after three in a row the client drops the token and logs in again.
 
 **Reconnecting.** Every wait is drawn at random from zero up to a ceiling, so boards that lost the
 same host come back spread out, not all at once:

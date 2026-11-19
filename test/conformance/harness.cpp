@@ -138,6 +138,12 @@ int main() {
     declareCommands(client, getenv("WBSKT_COMMANDS"));
     client.onConnected([] { emit("connected"); });
     client.onDisconnected([] { emit("disconnected"); });
+    client.onStopped([](const char* reason) {
+        JsonDocument event;
+        event["event"] = "stopped";
+        event["reason"] = reason;
+        emit(event);
+    });
     client.onMessage([](const WbsktMessage& message) {
         JsonDocument event;
         event["event"] = "message";

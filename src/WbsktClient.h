@@ -82,9 +82,10 @@ struct WbsktConfig {
     const char* otaRootCa = nullptr;
     // After an update the new firmware has this long with Wi-Fi up to reach Wbskt. If it doesn't,
     // or it restarts otaTrialBoots times without connecting, the board goes back to the firmware it
-    // had. A sign-in Wbskt accepts, or a 429 or 5xx while it is down, stops the clock. A refused key
-    // or any other 4xx doesn't, since that firmware may never connect. 0 waits for ever (restarts
-    // still count). The server shows the client as updating for the same 5 minutes.
+    // had. The clock pauses while Wbskt answers 429 or 5xx (it is down, and the firmware is fine) and
+    // runs again once an attempt fails any other way, unanswered or refused. A sign-in Wbskt accepts
+    // neither pauses nor stops it: only the connection does. 0 waits for ever (restarts still count). The server shows the
+    // client as updating for the same 5 minutes.
     uint32_t otaConfirmTimeoutMs = 5UL * 60UL * 1000UL;
     uint8_t otaTrialBoots = 3;
 };
@@ -122,6 +123,13 @@ public:
     void onMessage(MessageHandler handler) { onMessage_ = std::move(handler); }
     void onConnected(EventHandler handler) { onConnected_ = std::move(handler); }
     void onDisconnected(EventHandler handler) { onDisconnected_ = std::move(handler); }
+    // Called when the client stops for good, because no retry could work: the reason is the code
+    // Wbskt answered (CLIENT_UNAUTHORIZED: deleted or secret rotated; POLICY_NOT_FOUND or
+    // REGISTRATION_PIN_REQUIRED: wrong PIN; CLIENT_NAME_INVALID), or NO_POLICY_PIN when there is
+    // nothing to register with. Fix it (setCredentials(), a new PIN) and call begin() again.
+    void onStopped(std::function<void(const char* reason)> handler) { onStopped_ = std::move(handler); }
+    // That reason while the client is stopped for good, nullptr otherwise (also before begin() and after end()).
+    const char* stopReason() const { return stopReason_.empty() ? nullptr : stopReason_.c_str(); }
 
     // Declare a command the console can send, before begin(). Chain .param(...) for its fields.
     WbsktCommandBuilder addCommand(const char* name, const char* description = "");
@@ -187,7 +195,8 @@ private:
     void openSocket();
     void onSocketEvent(WStype_t type, uint8_t* payload, size_t length);
     void connectionDropped();
-    void otaReachedHost();
+    void otaAnswered(int status);
+    void stopForGood(const char* reason);
     void attemptFailed();
     void schedule(uint32_t delayMs);
     bool enqueueMessage(const char* type, JsonVariantConst payload);
@@ -242,7 +251,8 @@ private:
     // Set while new firmware is on trial: it has otaConfirmTimeoutMs of Wi-Fi time to connect.
     bool otaTrial_ = false;
     uint32_t otaTrialOnlineMs_ = 0;
-    bool otaTrialReachedHost_ = false;
+    // Paused while Wbskt answers that it is busy or down; see otaConfirmTimeoutMs.
+    bool otaTrialPaused_ = false;
     uint32_t otaTrialTickAt_ = 0;
     String otaTrialCommandId_;
     String otaTrialVersion_;
@@ -252,4 +262,6 @@ private:
     MessageHandler onMessage_;
     EventHandler onConnected_;
     EventHandler onDisconnected_;
+    std::function<void(const char*)> onStopped_;
+    std::string stopReason_;
 };
