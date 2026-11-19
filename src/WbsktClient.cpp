@@ -3,10 +3,14 @@
 #include <HTTPClient.h>
 #include <WiFi.h>
 #include <WiFiClientSecure.h>
+#include <esp_idf_version.h>
+#include <esp_sntp.h>
 #include <esp_system.h>
 #include <freertos/FreeRTOS.h>
 #include <freertos/task.h>
+#include <stdlib.h>
 #include <sys/time.h>
+#include <time.h>
 
 #include "WbsktOtaFlash.h"
 #include "wbskt/IsoTime.h"
@@ -15,6 +19,15 @@
 #include "wbskt/Version.h"
 
 namespace {
+
+// A sketch that started SNTP itself keeps its own servers.
+bool sntpRunning() {
+#if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(5, 1, 0)
+    return esp_sntp_enabled();
+#else
+    return sntp_enabled();
+#endif
+}
 
 constexpr const char* kPrefsNamespace = "wbskt";
 constexpr const char* kPrefsRef = "ref";
@@ -72,8 +85,15 @@ void WbsktClient::begin() {
     if (config_.rootCa == nullptr) {
         config_.rootCa = wbskt_core::kLetsEncryptRoots;
     }
-    if (config_.ntpServer != nullptr) {
+    if (config_.ntpServer != nullptr && !sntpRunning()) {
+        // configTime sets the time zone too; put back what the sketch chose, so only the clock changes.
+        const char* tz = getenv("TZ");
+        const String sketchTz = tz ? tz : "";
         configTime(0, 0, config_.ntpServer);
+        if (tz) {
+            setenv("TZ", sketchTz.c_str(), 1);
+            tzset();
+        }
     }
 
     prefs_.begin(kPrefsNamespace, true);
