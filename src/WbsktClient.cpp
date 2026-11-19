@@ -64,7 +64,7 @@ std::string serialize(const JsonDocument& doc) {
 
 WbsktCommandBuilder& WbsktCommandBuilder::param(const char* name, WbsktDataType type, bool required,
                                                 const char* label, const char* description) {
-    command_.parameters.push_back({name, type, required, label, description});
+    commands_[index_].parameters.push_back({name, type, required, label, description});
     return *this;
 }
 
@@ -78,7 +78,7 @@ WbsktClient::WbsktClient(const char* clientName, const char* policyPin, WbsktCon
 
 WbsktCommandBuilder WbsktClient::addCommand(const char* name, const char* description) {
     commands_.push_back({name, description, {}});
-    return WbsktCommandBuilder(commands_.back());
+    return WbsktCommandBuilder(commands_, commands_.size() - 1);
 }
 
 void WbsktClient::begin() {
