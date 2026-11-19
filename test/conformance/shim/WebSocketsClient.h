@@ -1,4 +1,4 @@
-// A stand-in for links2004/WebSockets 2.7.3 on Linux, over plain ws://. It copies the library's
+// A stand-in for links2004/WebSockets 2.7.2 on Linux, over plain ws://. It copies the library's
 // behaviour where the SDK depends on it:
 // - loop() connects only while millis() - lastConnectionFail >= reconnectInterval; begin() sets
 //   lastConnectionFail to 0, and every failure or disconnect sets it to millis();
