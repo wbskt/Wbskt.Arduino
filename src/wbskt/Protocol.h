@@ -70,9 +70,11 @@ UpgradeFailure classifyUpgradeFailure(const char* reason, size_t length);
 // The HTTP status in that reason, or 0 when the server never answered.
 int upgradeStatus(const char* reason, size_t length);
 
-// Whether an answer from Wbskt with this status lets firmware on trial stop its clock: a success, or
-// the service saying it is busy or down. A 4xx such as a refused key may mean the new firmware
-// itself is wrong, so the clock keeps running.
-bool answerKeepsNewFirmware(int status);
+// Whether an answer with this status pauses the clock of firmware on trial: only Wbskt saying it is
+// busy or down (429, 5xx), which proves the new firmware's network works and it is waiting on Wbskt.
+// A success doesn't: a firmware that signs in but can never open the socket (a wrong socket host, a
+// broken TLS setup) would otherwise be kept with no way to take the next update. Nor does a 4xx such
+// as a refused key, or no answer at all.
+bool answerPausesOtaClock(int status);
 
 }  // namespace wbskt_core

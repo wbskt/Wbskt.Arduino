@@ -393,12 +393,15 @@ void upgradeFailures() {
     CHECK(status("Connection lost") == 0);
     CHECK(wbskt_core::upgradeStatus(nullptr, 0) == 0);
 
-    CHECK(wbskt_core::answerKeepsNewFirmware(200));
-    CHECK(wbskt_core::answerKeepsNewFirmware(429));
-    CHECK(wbskt_core::answerKeepsNewFirmware(503));
-    CHECK(!wbskt_core::answerKeepsNewFirmware(401));
-    CHECK(!wbskt_core::answerKeepsNewFirmware(403));
-    CHECK(!wbskt_core::answerKeepsNewFirmware(0));
+    CHECK(wbskt_core::answerPausesOtaClock(429));
+    CHECK(wbskt_core::answerPausesOtaClock(503));
+    CHECK(wbskt_core::answerPausesOtaClock(500));
+    CHECK(!wbskt_core::answerPausesOtaClock(200));
+    CHECK(!wbskt_core::answerPausesOtaClock(201));
+    CHECK(!wbskt_core::answerPausesOtaClock(401));
+    CHECK(!wbskt_core::answerPausesOtaClock(403));
+    CHECK(!wbskt_core::answerPausesOtaClock(0));
+    CHECK(!wbskt_core::answerPausesOtaClock(-1));
 }
 
 void clientNames() {

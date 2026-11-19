@@ -4,6 +4,9 @@ on:
   pull_request:
   push:
     branches: [master]
+  # Weekly as well, so a new arduinoWebSockets release is tried (conformance-real) even when nothing here changes.
+  schedule:
+    - cron: '23 5 * * 1'
   workflow_call:
 
 permissions:
@@ -57,12 +60,20 @@ jobs:
           WBSKT_HARNESS="$GITHUB_WORKSPACE/test/conformance/wbskt-harness" python -m pytest -v
 
   conformance-real:
-    # The same suite with the real links2004/arduinoWebSockets in place of the stand-in, at the
-    # version the stand-in copies. Only the ESP32 core's WiFiClient is shimmed (shim/real), so a
-    # change in when the library connects, closes or reports a failure shows up here. Built with
-    # AddressSanitizer, which also fails the run when the library leaks a network client.
+    # The same suite with the real links2004/arduinoWebSockets in place of the stand-in. Only the ESP32
+    # core's WiFiClient is shimmed (shim/real), so a change in when the library connects, closes or
+    # reports a failure shows up here. Built with AddressSanitizer, which also fails the run when the
+    # library leaks a network client. WbsktSocket reads the library's internals, and the Library
+    # Manager installs its newest 2.x beside Wbskt, so this runs over the newest release tag as well as
+    # the floor library.properties claims: a new release that breaks the client fails the next run.
+    # The floor is 2.7.2 because older versions don't say why an upgrade failed, which the token and
+    # OTA rules need (2.6.0 failed three scenarios here).
     runs-on: ubuntu-latest
     timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        websockets: [newest, 2.7.2]
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
@@ -70,10 +81,17 @@ jobs:
           repository: wbskt/Wbskt
           path: wbskt
           sparse-checkout: Tests/Conformance
-      - name: Fetch ArduinoJson and WebSockets 2.7.2
+      - name: Fetch ArduinoJson and WebSockets ${{ matrix.websockets }}
+        env:
+          WEBSOCKETS: ${{ matrix.websockets }}
         run: |
           git clone --depth 1 --branch v7.4.2 https://github.com/bblanchon/ArduinoJson test/host/ArduinoJson
-          git clone --depth 1 --branch 2.7.2 https://github.com/Links2004/arduinoWebSockets test/conformance/arduinoWebSockets
+          if [ "$WEBSOCKETS" = newest ]; then
+            WEBSOCKETS=$(git ls-remote --tags --refs https://github.com/Links2004/arduinoWebSockets \
+              | sed 's#.*refs/tags/##' | grep -E '^[0-9]+\.[0-9]+\.[0-9]+$' | sort -V | tail -1)
+          fi
+          echo "arduinoWebSockets $WEBSOCKETS"
+          git clone --depth 1 --branch "$WEBSOCKETS" https://github.com/Links2004/arduinoWebSockets test/conformance/arduinoWebSockets
       - name: Build the harness over the real library
         run: make -C test/conformance real
       - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5.6.0
@@ -104,7 +122,7 @@ jobs:
           - fqbn: esp32:esp32:esp32:PartitionScheme=min_spiffs
             deps: floors
             arduinojson: '7.0.0'
-            websockets: '2.6.0'
+            websockets: '2.7.2'
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
       - uses: arduino/compile-sketches@3f3921bad94c706a153e6d7294445b49d7f76a63 # v1.1.4
@@ -139,6 +157,6 @@ jobs:
         run: |
           for example in examples/*/; do
             pio ci "$example" --lib . --board esp32dev \
-              --project-option "lib_deps=bblanchon/ArduinoJson@^7.0.0, links2004/WebSockets@^2.6.0" \
+              --project-option "lib_deps=bblanchon/ArduinoJson@^7.0.0, links2004/WebSockets@^2.7.2" \
               --project-option "board_build.partitions=min_spiffs.csv"
           done

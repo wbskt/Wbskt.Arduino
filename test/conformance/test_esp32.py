@@ -175,8 +175,8 @@ async def test_keeps_a_new_firmware_that_reaches_wbskt_during_an_outage(api, soc
     await socket_server.send(0, ota_update("o7"))
     await old.expect("restart")
 
-    # The socket host answers every upgrade 503, as during an outage: the new firmware signs in and
-    # is refused, which proves its network works, so the trial clock stops and it is kept.
+    # The socket host answers every upgrade 503, as during an outage. The sign-in itself succeeds, which
+    # alone keeps nothing (see the next scenario): only the upgrade's 503 pauses the trial clock.
     socket_server.down = True
     monkeypatch.setenv("WBSKT_OTA", "1.1.0")
     monkeypatch.setenv("WBSKT_OTA_CONFIRM_MS", "1500")
@@ -194,6 +194,40 @@ async def test_keeps_a_new_firmware_that_reaches_wbskt_during_an_outage(api, soc
 
     assert installed["commandId"] == "o7"
     assert installed["version"] == "1.1.0"
+
+
+async def test_goes_back_when_the_new_firmware_signs_in_but_never_opens_the_socket(api, socket_server, client, monkeypatch):
+    monkeypatch.setenv("WBSKT_OTA", "1.0.0")
+    monkeypatch.setenv("WBSKT_OTA_INSTALL", "ok")
+    old = await client()
+    await old.expect("connected")
+    await socket_server.send(0, ota_update("o9"))
+    await old.expect("restart")
+
+    # A firmware built with a wrong socket host: every sign-in succeeds, every upgrade finds nothing
+    # listening. Kept, it could never take the next update, so the board goes back.
+    socket_url = socket_server.url
+    socket_server.url = "ws://127.0.0.1:9"
+    monkeypatch.setenv("WBSKT_OTA", "1.1.0")
+    monkeypatch.setenv("WBSKT_OTA_CONFIRM_MS", "1500")
+    broken = await client()
+    await broken.expect("restart", timeout=10.0)
+    assert api.logins
+
+    socket_server.url = socket_url
+    monkeypatch.setenv("WBSKT_OTA", "1.0.0")
+    monkeypatch.delenv("WBSKT_OTA_CONFIRM_MS")
+    back = await client()
+    await back.expect("ota", state="failed")
+    await back.expect("connected", timeout=RECONNECT)
+    failed = None
+    while failed is None:
+        status = await next_ota_status(socket_server)
+        if status["state"] == "failed":
+            failed = status
+
+    assert failed["commandId"] == "o9"
+    assert "went back" in failed["error"]
 
 
 async def test_goes_back_when_the_new_firmware_never_connects(api, socket_server, client, monkeypatch):
@@ -262,3 +296,26 @@ async def test_goes_back_when_wbskt_refuses_the_new_firmware(api, socket_server,
 
     assert failed["commandId"] == "o8"
     assert "went back" in failed["error"]
+
+
+# Stopping for good
+
+
+async def test_says_it_stopped_once_its_credentials_are_rejected(api, socket_server, client):
+    first = await client()
+    await first.expect("connected")
+    await first.stop()
+    api.forget_all_clients()
+
+    second = await client()
+
+    # The sketch is told, so it can show it or take new credentials, rather than wait on a reconnect.
+    await second.expect("stopped", reason="CLIENT_UNAUTHORIZED")
+
+
+async def test_says_it_stopped_on_a_registration_no_retry_can_fix(api, socket_server, client):
+    api.register_answers = [(404, {"code": "POLICY_NOT_FOUND", "detail": "Invalid registration PIN."}, {})]
+
+    harness = await client()
+
+    await harness.expect("stopped", reason="POLICY_NOT_FOUND")

@@ -148,8 +148,8 @@ int upgradeStatus(const char* reason, size_t length) {
     return text.size() == at + 8 || !isdigit(static_cast<unsigned char>(text[at + 8])) ? status : 0;
 }
 
-bool answerKeepsNewFirmware(int status) {
-    return (status >= 200 && status < 300) || status == 429 || status >= 500;
+bool answerPausesOtaClock(int status) {
+    return status == 429 || (status >= 500 && status < 600);
 }
 
 std::string encodeMessage(const char* type, JsonVariantConst payload) {

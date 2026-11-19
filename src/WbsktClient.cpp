@@ -97,7 +97,7 @@ void WbsktClient::begin() {
         // Registration would answer 400 CLIENT_NAME_INVALID on every retry.
         log_e("wbskt: the client name must be 1-%u characters once trimmed. Stopped",
               static_cast<unsigned>(wbskt_core::kMaxClientNameLength));
-        state_ = State::Stopped;
+        stopForGood("CLIENT_NAME_INVALID");
         return;
     }
     if (config_.rootCa == nullptr) {
@@ -121,6 +121,7 @@ void WbsktClient::begin() {
     checkOtaTrial();
 
     socket_.onEvent([this](WStype_t type, uint8_t* payload, size_t length) { onSocketEvent(type, payload, length); });
+    stopReason_.clear();
     failures_ = 0;
     state_ = State::Waiting;
     schedule(0);
@@ -140,11 +141,11 @@ void WbsktClient::end() {
 }
 
 void WbsktClient::loop() {
-    if (otaTrial_ && !otaTrialReachedHost_ && config_.otaConfirmTimeoutMs > 0) {
+    if (otaTrial_ && config_.otaConfirmTimeoutMs > 0) {
         // Only time with Wi-Fi up counts: a power cut that also took the router down must not roll
-        // back a good image that simply had no network to connect over.
+        // back a good image that simply had no network to connect over. Nor does time Wbskt spends down.
         const uint32_t now = millis();
-        if (WiFi.status() == WL_CONNECTED) {
+        if (WiFi.status() == WL_CONNECTED && !otaTrialPaused_) {
             otaTrialOnlineMs_ += now - otaTrialTickAt_;
         }
         otaTrialTickAt_ = now;
@@ -182,6 +183,7 @@ void WbsktClient::loop() {
                 // A refused TCP connect raises no event; don't wait out the timeout for it. The upgrade
                 // reply is read on a later loop(), so this checks the TCP connect, not isConnected().
                 if (state_ == State::Connecting && !socket_.open()) {
+                    otaAnswered(0);
                     // Leave Connecting first, so the cleanup event this raises isn't counted twice.
                     attemptFailed();
                     socket_.disconnect();
@@ -189,6 +191,7 @@ void WbsktClient::loop() {
                 }
             }
             if (state_ == State::Connecting && millis() - waitStartedAt_ > kConnectTimeoutMs) {
+                otaAnswered(0);
                 // Leave Connecting first, so the disconnect event this raises isn't counted twice.
                 attemptFailed();
                 socket_.disconnect();
@@ -213,7 +216,7 @@ void WbsktClient::startSignIn() {
     if (clientRefId_.isEmpty() || secret_.isEmpty()) {
         if (policyPin_.isEmpty()) {
             log_e("wbskt: no stored credentials and no policy PIN to register with");
-            state_ = State::Stopped;
+            stopForGood("NO_POLICY_PIN");
             return;
         }
         signInStep_ = SignInStep::Register;
@@ -277,9 +280,7 @@ void WbsktClient::finishSignIn() {
     if (state_ != State::SigningIn) {
         return;
     }
-    if (wbskt_core::answerKeepsNewFirmware(exchange_.status)) {
-        otaReachedHost();
-    }
+    otaAnswered(exchange_.status);
     JsonDocument response;
     deserializeJson(response, exchange_.response);
     if (exchange_.status == 429) {
@@ -309,7 +310,7 @@ void WbsktClient::finishRegistration(int status, const JsonDocument& response) {
             // registration limit every board behind the same router shares.
             log_e("wbskt: registration answered %d %s. Stopped: check the policy PIN (console: Policies) "
                   "and the client name, then begin()", status, code);
-            state_ = State::Stopped;
+            stopForGood(code);
             return;
         }
         log_w("wbskt: registration answered %d %s", status, code ? code : "");
@@ -347,7 +348,7 @@ void WbsktClient::finishLogin(int status, const JsonDocument& response) {
               "Stopped. Call setCredentials() with the new secret, or forgetCredentials() to register again, "
               "then begin()");
         token_ = "";
-        state_ = State::Stopped;
+        stopForGood(code);
         return;
     }
     log_w("wbskt: login answered %d %s", status, code ? code : "");
@@ -392,10 +393,7 @@ void WbsktClient::onSocketEvent(WStype_t type, uint8_t* payload, size_t length) 
             } else if (state_ == State::Connecting) {
                 const wbskt_core::UpgradeFailure failure =
                     wbskt_core::classifyUpgradeFailure(reinterpret_cast<const char*>(payload), length);
-                if (wbskt_core::answerKeepsNewFirmware(
-                        wbskt_core::upgradeStatus(reinterpret_cast<const char*>(payload), length))) {
-                    otaReachedHost();
-                }
+                otaAnswered(wbskt_core::upgradeStatus(reinterpret_cast<const char*>(payload), length));
                 if (failure == wbskt_core::UpgradeFailure::TokenRefused ||
                     (failure == wbskt_core::UpgradeFailure::Unknown &&
                      ++rejectedUpgrades_ >= kUpgradeFailuresBeforeLogin)) {
@@ -514,12 +512,30 @@ void WbsktClient::checkOtaTrial() {
     }
 }
 
-void WbsktClient::otaReachedHost() {
-    // Wbskt accepted this firmware's sign-in or said it is down, so its network works and waiting
-    // longer for the connection is no reason to go back. Restarts still count.
-    if (otaTrial_ && !otaTrialReachedHost_) {
-        otaTrialReachedHost_ = true;
-        log_i("wbskt: the new firmware reached Wbskt; keeping it while it waits to connect");
+void WbsktClient::otaAnswered(int status) {
+    // While Wbskt says it is down the new firmware's network evidently works, so waiting for it is no
+    // reason to go back. An attempt that fails any other way, unanswered or refused, runs the clock
+    // again. A success changes nothing: a sign-in between two refused upgrades says nothing new, and
+    // only connecting proves the firmware can take the next update. Restarts count either way.
+    if (!otaTrial_ || (status >= 200 && status < 300)) {
+        return;
+    }
+    const bool pause = wbskt_core::answerPausesOtaClock(status);
+    if (pause != otaTrialPaused_) {
+        otaTrialPaused_ = pause;
+        if (pause) {
+            log_i("wbskt: Wbskt is down; the new firmware's trial waits for it");
+        } else {
+            log_i("wbskt: the new firmware's trial runs again");
+        }
+    }
+}
+
+void WbsktClient::stopForGood(const char* reason) {
+    state_ = State::Stopped;
+    stopReason_ = reason != nullptr ? reason : "";
+    if (onStopped_) {
+        onStopped_(stopReason_.c_str());
     }
 }
 
