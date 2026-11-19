@@ -1,5 +1,6 @@
 // The sys.ota.update command and the sys.ota.status frames that answer it. No Arduino or network
-// code here, so it runs in the host tests; the download and flashing are in src/WbsktOta.cpp.
+// code here, so it runs in the host tests; the download and flashing are in src/WbsktOtaFlash.cpp
+// and src/WbsktClient.cpp.
 #pragma once
 
 #include <ArduinoJson.h>

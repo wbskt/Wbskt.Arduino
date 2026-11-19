@@ -161,6 +161,11 @@ burst of any queued messages. It is a good place to report your current state. `
 drops, and when `end()` closes it. Failed attempts to connect don't raise it. Every handler runs
 inside `wbskt.loop()`, on the sketch's own task.
 
+**Threads and watchdog.** The library starts no task of its own except the short-lived sign-in task
+of `backgroundSignIn`, so handlers need no locks. Keep them short: while one runs, `loop()` answers
+no pings and acks no commands, the server drops a link that misses its pongs, and a sketch that
+turned on the loop watchdog (`enableLoopWDT()`) resets if a handler outlasts it.
+
 ## Firmware updates (OTA)
 
 ```cpp
@@ -273,7 +278,7 @@ WbsktClient wbskt("greenhouse-sensor", "483920", config);
 | `publishCapabilities()` | Sends the commands again, after adding some once connected. |
 | `onMessage(handler)` | Commands and messages from the server. |
 | `onConnected(handler)`, `onDisconnected(handler)` | Connection events. |
-| `enableOta(version)` | Takes firmware updates from the server, and reports `version` as the `firmware` state. |
+| `enableOta(version)` | Takes firmware updates from the server, and reports `version` as `firmwareVersion` in its capabilities. |
 | `onOtaRequest(handler)` | Return `false` to refuse an update before it starts. |
 | `onOta(handler)` | Update progress: `Accepted`, `Downloading` with a percentage, `Installed`, `Failed`, `Rejected`. |
 | `queuedMessages()` | Messages waiting in the buffer. |
@@ -333,8 +338,9 @@ send meanwhile are queued. Handlers and NVS writes still happen inside `wbskt.lo
   takes its serialized size while it is being encoded or sent.
 - **Messages** are at most 64 KB. In practice the WebSockets library receives frames of up to
   15 KB on ESP32 (`WEBSOCKETS_MAX_DATA_SIZE`), so keep commands from the server small.
-- **Commands sent while the board is offline** are not queued by the server. The console tells the
-  sender that the client is offline.
+- **Commands sent while the board is offline** wait on the server (by default up to 100 per client, for 24 hours
+  unless the sender sets `expiresAt`) and arrive, oldest first, when it next connects. One that
+  expires first is dropped, and the board refuses one that arrives past its `expiresAt`.
 - **Timekeeping:** `millis()` wraps after 49 days. Every timer in the library handles the wrap.
 
 ## Self-hosting
@@ -373,8 +379,8 @@ The library implements
 [the client protocol](https://github.com/wbskt/Wbskt/blob/master/Docs/Client.Protocol.md): stored
 credentials, token reuse, `capabilities` first on every connection, ping/pong, command acks and
 expiry, the offline buffer with `sentAt`, and the jittered reconnect schedule. `sys.ota.update` and
-`sys.ota.status` are this library's proposal for firmware updates; the server side is
-[wbskt/Wbskt#510](https://github.com/wbskt/Wbskt/issues/510).
+`sys.ota.status` are the protocol's optional firmware updates (section 4.4), which the console
+and `POST /clients/{clientRef}/ota` send.
 
 The parts with no hardware dependency, in `src/wbskt/`, have host tests. Run `make -C test/host`
 after cloning ArduinoJson into `test/host/ArduinoJson`.
