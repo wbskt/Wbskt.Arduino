@@ -93,6 +93,13 @@ WbsktCommandBuilder WbsktClient::addCommand(const char* name, const char* descri
 }
 
 void WbsktClient::begin() {
+    if (!wbskt_core::isValidClientName(clientName_.c_str())) {
+        // Registration would answer 400 CLIENT_NAME_INVALID on every retry.
+        log_e("wbskt: the client name must be 1-%u characters once trimmed. Stopped",
+              static_cast<unsigned>(wbskt_core::kMaxClientNameLength));
+        state_ = State::Stopped;
+        return;
+    }
     if (config_.rootCa == nullptr) {
         config_.rootCa = wbskt_core::kLetsEncryptRoots;
     }
@@ -296,7 +303,16 @@ void WbsktClient::finishRegistration(int status, const JsonDocument& response) {
     const char* ref = response["clientRefId"];
     const char* secret = response["secret"];
     if ((status != 200 && status != 201) || ref == nullptr || secret == nullptr) {
-        log_w("wbskt: registration answered %d", status);
+        const char* code = response["code"];
+        if (wbskt_core::isFinalRegistrationCode(code)) {
+            // A wrong PIN or name: calling registration again can't work, and spends the per-address
+            // registration limit every board behind the same router shares.
+            log_e("wbskt: registration answered %d %s. Stopped: check the policy PIN (console: Policies) "
+                  "and the client name, then begin()", status, code);
+            state_ = State::Stopped;
+            return;
+        }
+        log_w("wbskt: registration answered %d %s", status, code ? code : "");
         attemptFailed();
         return;
     }
@@ -430,14 +446,20 @@ void WbsktClient::schedule(uint32_t delayMs) {
 }
 
 bool WbsktClient::send(const char* type, JsonVariantConst payload) {
-    if (!wbskt_core::isSendableType(type)) {
-        return false;
-    }
-    return enqueue(wbskt_core::encodeMessage(type, payload));
+    return wbskt_core::isSendableType(type) && enqueueMessage(type, payload);
 }
 
 bool WbsktClient::reportState(const JsonDocument& values) {
-    return enqueue(wbskt_core::encodeMessage(wbskt_core::kStateReport, values.as<JsonVariantConst>()));
+    return enqueueMessage(wbskt_core::kStateReport, values.as<JsonVariantConst>());
+}
+
+bool WbsktClient::enqueueMessage(const char* type, JsonVariantConst payload) {
+    if (wbskt_core::hasNonFiniteNumber(payload)) {
+        // ArduinoJson would write null, and the reading would arrive as if the sensor had sent nothing.
+        log_w("wbskt: %s holds NaN or infinity, which JSON can't carry; not sent", type);
+        return false;
+    }
+    return enqueue(wbskt_core::encodeMessage(type, payload));
 }
 
 void WbsktClient::publishCapabilities() {
