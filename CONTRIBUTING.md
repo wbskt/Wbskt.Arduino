@@ -63,4 +63,16 @@ tagged `v` and the same version (`v0.9.0-beta.2`).
   the CI checks again, and publishes with `pio pkg publish --owner wbskt`. It runs in the
   `platformio` environment with the `PLATFORMIO_AUTH_TOKEN` secret (from `pio account token`).
 
+Before tagging, run the release on a board, because CI builds the client for Linux and never
+flashes it. Flash `examples/TemperatureSensor` to an ESP32 with the version being released and check,
+against the dev hosts:
+
+- [ ] it registers on first boot and logs `connected`,
+- [ ] a reading it sends shows up in the console,
+- [ ] with `examples/Relay`, a command sent from the console reaches the board and is acknowledged,
+- [ ] it reconnects after the access point is switched off and on again,
+- [ ] with `examples/Ota`, an OTA update installs once and the board reports the new version.
+
+Paste the ticked list, with the board and core version, into the version-bump PR.
+
 A published version can't be replaced in either registry, so a bad release is fixed by the next one.

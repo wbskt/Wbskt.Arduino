@@ -392,9 +392,19 @@ cd <wbskt/Wbskt>/Tests/Conformance
 WBSKT_HARNESS=<this repo>/test/conformance/wbskt-harness python -m pytest -v
 ```
 
-The WebSockets shim copies the parts of the library's behaviour (2.7.3) that the client depends
+The WebSockets shim copies the parts of the library's behaviour (2.7.2) that the client depends
 on: when `loop()` connects, which failures raise an event, the reasons it gives, and the heartbeat.
-If a newer library changes any of these, change the shim too.
+So that it can't drift from the library unnoticed, CI also runs the whole suite over the real
+library at that version, with only the ESP32 core's `WiFiClient` shimmed (`shim/real`):
+
+```sh
+git clone --depth 1 --branch 2.7.2 https://github.com/Links2004/arduinoWebSockets test/conformance/arduinoWebSockets
+make -C test/conformance real
+WBSKT_HARNESS=<this repo>/test/conformance/wbskt-harness-real python -m pytest -v
+```
+
+When the pinned version moves, move it in `ci.yml`, here and in `shim/WebSocketsClient.h` together,
+and change the stand-in wherever the real run starts to disagree with it.
 
 ## License
 
