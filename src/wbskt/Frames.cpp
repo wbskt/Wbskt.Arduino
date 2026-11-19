@@ -72,6 +72,10 @@ UpgradeFailure classifyUpgradeFailure(const char* reason, size_t length) {
                : UpgradeFailure::Other;
 }
 
+bool upgradeWasAnswered(const char* reason, size_t length) {
+    return reason != nullptr && std::string(reason, length).find("HTTP ") != std::string::npos;
+}
+
 std::string encodeMessage(const char* type, JsonVariantConst payload) {
     JsonDocument doc;
     doc["type"] = type;

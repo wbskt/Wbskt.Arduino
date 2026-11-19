@@ -58,4 +58,7 @@ enum class UpgradeFailure {
 // or "WebSocket handshake failed - HTTP 401" when the answer had no Connection: upgrade.
 UpgradeFailure classifyUpgradeFailure(const char* reason, size_t length);
 
+// Whether that reason carries an HTTP status: the server answered, so the network to it works.
+bool upgradeWasAnswered(const char* reason, size_t length);
+
 }  // namespace wbskt_core

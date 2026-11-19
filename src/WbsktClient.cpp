@@ -122,7 +122,7 @@ void WbsktClient::end() {
 }
 
 void WbsktClient::loop() {
-    if (otaTrial_ && config_.otaConfirmTimeoutMs > 0) {
+    if (otaTrial_ && !otaTrialReachedHost_ && config_.otaConfirmTimeoutMs > 0) {
         // Only time with Wi-Fi up counts: a power cut that also took the router down must not roll
         // back a good image that simply had no network to connect over.
         const uint32_t now = millis();
@@ -259,6 +259,9 @@ void WbsktClient::finishSignIn() {
     if (state_ != State::SigningIn) {
         return;
     }
+    if (exchange_.status > 0) {
+        otaReachedHost();
+    }
     JsonDocument response;
     deserializeJson(response, exchange_.response);
     if (exchange_.status == 429) {
@@ -362,6 +365,9 @@ void WbsktClient::onSocketEvent(WStype_t type, uint8_t* payload, size_t length) 
             } else if (state_ == State::Connecting) {
                 const wbskt_core::UpgradeFailure failure =
                     wbskt_core::classifyUpgradeFailure(reinterpret_cast<const char*>(payload), length);
+                if (wbskt_core::upgradeWasAnswered(reinterpret_cast<const char*>(payload), length)) {
+                    otaReachedHost();
+                }
                 if (failure == wbskt_core::UpgradeFailure::TokenRefused ||
                     (failure == wbskt_core::UpgradeFailure::Unknown &&
                      ++rejectedUpgrades_ >= kUpgradeFailuresBeforeLogin)) {
@@ -471,6 +477,15 @@ void WbsktClient::checkOtaTrial() {
     otaTrialOnlineMs_ = 0;
     if (boots > config_.otaTrialBoots) {
         rollBack();
+    }
+}
+
+void WbsktClient::otaReachedHost() {
+    // Wbskt answered, even if only with an error during an outage: this firmware's network works, so
+    // waiting longer for the connection is no reason to go back. Restarts still count.
+    if (otaTrial_ && !otaTrialReachedHost_) {
+        otaTrialReachedHost_ = true;
+        log_i("wbskt: the new firmware reached Wbskt; keeping it while it waits to connect");
     }
 }
 

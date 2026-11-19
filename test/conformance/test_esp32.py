@@ -4,6 +4,8 @@ Tests/Conformance in wbskt/Wbskt and runs it with that suite's fixtures and fake
 import asyncio
 import time
 
+import pytest
+
 
 RECONNECT = 25.0
 
@@ -165,6 +167,35 @@ async def test_confirms_the_update_once_the_new_firmware_connects(api, socket_se
     assert capabilities["payload"]["firmwareVersion"] == "1.1.0"
 
 
+async def test_keeps_a_new_firmware_that_reaches_wbskt_during_an_outage(api, socket_server, client, monkeypatch):
+    monkeypatch.setenv("WBSKT_OTA", "1.0.0")
+    monkeypatch.setenv("WBSKT_OTA_INSTALL", "ok")
+    old = await client()
+    await old.expect("connected")
+    await socket_server.send(0, ota_update("o7"))
+    await old.expect("restart")
+
+    # The socket host answers every upgrade 503, as during an outage: the new firmware signs in and
+    # is refused, which proves its network works, so the trial clock stops and it is kept.
+    socket_server.down = True
+    monkeypatch.setenv("WBSKT_OTA", "1.1.0")
+    monkeypatch.setenv("WBSKT_OTA_CONFIRM_MS", "1500")
+    new = await client()
+    with pytest.raises(AssertionError):
+        await new.expect("restart", timeout=5.0)
+
+    socket_server.down = False
+    await new.expect("connected", timeout=RECONNECT)
+    installed = None
+    while installed is None:
+        status = await next_ota_status(socket_server)
+        if status["state"] == "installed":
+            installed = status
+
+    assert installed["commandId"] == "o7"
+    assert installed["version"] == "1.1.0"
+
+
 async def test_goes_back_when_the_new_firmware_never_connects(api, socket_server, client, monkeypatch):
     monkeypatch.setenv("WBSKT_OTA", "1.0.0")
     monkeypatch.setenv("WBSKT_OTA_INSTALL", "ok")
@@ -173,12 +204,17 @@ async def test_goes_back_when_the_new_firmware_never_connects(api, socket_server
     await socket_server.send(0, ota_update("o5"))
     await old.expect("restart")
 
+    # A firmware whose network never gets through: nothing answers it, neither the API nor the socket
+    # host. An HTTP answer, even an error, would keep it (see the next scenario).
+    api_url = api.url
+    api.url = "http://127.0.0.1:9"
     socket_server.down = True
     monkeypatch.setenv("WBSKT_OTA", "1.1.0")
     monkeypatch.setenv("WBSKT_OTA_CONFIRM_MS", "1500")
     broken = await client()
     await broken.expect("restart", timeout=10.0)
 
+    api.url = api_url
     socket_server.down = False
     monkeypatch.setenv("WBSKT_OTA", "1.0.0")
     monkeypatch.delenv("WBSKT_OTA_CONFIRM_MS")
