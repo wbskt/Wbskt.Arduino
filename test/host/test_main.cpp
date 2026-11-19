@@ -103,7 +103,7 @@ void capabilities() {
     std::vector<wbskt_core::Command> commands;
     commands.push_back({"relay.set", "Switch the relay", {{"on", wbskt_core::DataType::Boolean, true, "", ""}}});
     JsonDocument frame;
-    readJson(wbskt_core::encodeCapabilities({"wbskt-arduino", "1.0.0", "ESP32 ESP32-S3", ""}, commands), frame);
+    readJson(wbskt_core::encodeCapabilities({"wbskt-arduino", "1.0.0", "ESP32-S3 (arduino-esp32 3.1.1)", ""}, commands), frame);
     CHECK(std::strcmp(frame["type"], "capabilities") == 0);
     CHECK(std::strcmp(frame["payload"]["agent"], "wbskt-arduino") == 0);
     JsonVariantConst relay = frame["payload"]["capabilities"][0];

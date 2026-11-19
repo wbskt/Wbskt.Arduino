@@ -29,6 +29,17 @@ bool sntpRunning() {
 #endif
 }
 
+// The chip and the core, as the console shows a client's OS: "ESP32-S3 (arduino-esp32 3.1.1)". The
+// chip model already names the family, so it isn't repeated.
+std::string platformName() {
+    std::string name = ESP.getChipModel();
+#if defined(ESP_ARDUINO_VERSION_MAJOR)
+    name += " (arduino-esp32 " + std::to_string(ESP_ARDUINO_VERSION_MAJOR) + "." +
+            std::to_string(ESP_ARDUINO_VERSION_MINOR) + "." + std::to_string(ESP_ARDUINO_VERSION_PATCH) + ")";
+#endif
+    return name;
+}
+
 constexpr const char* kPrefsNamespace = "wbskt";
 constexpr const char* kPrefsRef = "ref";
 constexpr const char* kPrefsSecret = "secret";
@@ -440,7 +451,7 @@ void WbsktClient::sendCapabilities() {
         system.push_back(wbskt_core::kSystemOta);
     }
     socket_.sendTXT(wbskt_core::encodeCapabilities(
-        {"wbskt-arduino", WBSKT_SDK_VERSION, std::string("ESP32 ") + ESP.getChipModel(), firmwareVersion_.c_str()},
+        {"wbskt-arduino", WBSKT_SDK_VERSION, platformName(), firmwareVersion_.c_str()},
         commands_, system).c_str());
 }
 
