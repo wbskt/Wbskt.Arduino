@@ -88,6 +88,11 @@ wbskt.send("temperature", reading);
 it and the console shows it. It may be 1–100 characters. Types starting with `sys.` (in any case),
 plus `capabilities` and `state.report`, belong to the platform, and `send` returns `false` for them.
 
+A number in the payload that is NaN or infinite makes `send` (and `reportState`) return `false`
+without sending anything, because JSON has neither: a DHT22 that failed to read returns NaN, and
+sending it would have reached the console as an empty reading. Leave the field out when the sensor
+failed, as every Wbskt SDK does.
+
 `send` never waits for the network. It returns `true` once the message is sent or queued, and
 `false` when it was dropped: a message that has to wait but is larger than the whole offline buffer
 (or any such message with `offlineBufferBytes` at `0`) is never queued.
@@ -268,12 +273,12 @@ WbsktClient wbskt("greenhouse-sensor", "483920", config);
 
 | | |
 |---|---|
-| `WbsktClient(name, pin, config = {})` | `name` is how the board shows in the console. `pin` is the policy PIN, or `nullptr` for a board whose credentials are already in NVS. |
+| `WbsktClient(name, pin, config = {})` | `name` is how the board shows in the console, 1–100 characters once trimmed (`begin()` logs an error and stops for any other). `pin` is the policy PIN, or `nullptr` for a board whose credentials are already in NVS. |
 | `begin()` | Reads the stored credentials and starts connecting. Call it once WiFi is set up. |
 | `loop()` | Does all the work. Call it from `loop()` as often as possible. |
 | `end()` | Closes the connection and stops. `begin()` starts again. |
 | `connected()` | `true` while the socket is open. |
-| `send(type, payload)` | Sends or queues a message. `false` for a reserved or empty type, a message over 64 KB, or one that has to wait and is larger than the offline buffer. |
+| `send(type, payload)` | Sends or queues a message. `false` for a reserved or empty type, a NaN or infinite number, a message over 64 KB, or one that has to wait and is larger than the offline buffer. |
 | `reportState(values)` | Sends or queues a state report. `false` on the same terms as `send`. |
 | `addCommand(name, description)` | Declares a command. Chain `.param(...)` for its fields. |
 | `publishCapabilities()` | Sends the commands again, after adding some once connected. |
@@ -365,7 +370,9 @@ logs lines starting with `wbskt:`.
 | What you see | Why |
 |---|---|
 | `no stored credentials and no policy PIN` | First boot without a PIN. Pass the policy's PIN. |
-| `registration answered` with a 4xx code | The server refused the PIN. Check it, and that the policy is enabled and not full. |
+| `registration answered 404 POLICY_NOT_FOUND`, `400 REGISTRATION_PIN_REQUIRED` or `400 CLIENT_NAME_INVALID` | The PIN matches no policy, is empty, or the name is blank or too long. The board stops rather than retry: fix it and call `begin()` (or restart). |
+| `registration answered` with another 4xx code | The policy is turned off (`POLICY_DISABLED`) or full (`POLICY_LIMIT_REACHED`, `PLAN_CLIENT_LIMIT_REACHED`). The board retries; turn it on or remove a client. |
+| `holds NaN or infinity` | A reading failed (a DHT22 returns NaN) and the message wasn't sent. Leave the field out when the sensor fails. |
 | `login answered 401 CLIENT_UNAUTHORIZED` | The client was deleted or its secret rotated in the console, and it stopped. Store the new secret with `setCredentials()`, or `forgetCredentials()` to register again, then `begin()`. |
 | `login answered 401 CLIENT_NOT_REGISTERED` | The policy needs approval. Approve the client in the console; the board connects on its next retry. |
 | It connects, then drops every minute or so | Pongs aren't coming back in time. Raise `heartbeatTimeoutMs` on a slow link. |

@@ -1,6 +1,7 @@
 #include "Frames.h"
 
 #include <ctype.h>
+#include <math.h>
 #include <string.h>
 
 #include "IsoTime.h"
@@ -55,6 +56,62 @@ bool isSendableType(const char* type) {
     }
     const size_t length = strlen(type);
     return length >= 1 && length <= kMaxTypeLength && !isReserved(type);
+}
+
+bool isValidClientName(const char* name) {
+    if (name == nullptr) {
+        return false;
+    }
+    const char* start = name;
+    const char* end = name + strlen(name);
+    while (start < end && isspace(static_cast<unsigned char>(*start))) {
+        ++start;
+    }
+    while (end > start && isspace(static_cast<unsigned char>(end[-1]))) {
+        --end;
+    }
+    size_t units = 0;
+    for (const char* at = start; at < end; ++at) {
+        const unsigned char byte = static_cast<unsigned char>(*at);
+        if ((byte & 0xC0) != 0x80) {
+            // A lead byte: four-byte sequences are two UTF-16 units, everything else one.
+            units += byte >= 0xF0 ? 2 : 1;
+        }
+    }
+    return units >= 1 && units <= kMaxClientNameLength;
+}
+
+bool isFinalRegistrationCode(const char* code) {
+    static const char* const kFinal[] = {"POLICY_NOT_FOUND", "REGISTRATION_PIN_REQUIRED", "CLIENT_NAME_INVALID"};
+    if (code == nullptr) {
+        return false;
+    }
+    for (const char* final : kFinal) {
+        if (strcmp(code, final) == 0) {
+            return true;
+        }
+    }
+    return false;
+}
+
+bool hasNonFiniteNumber(JsonVariantConst payload) {
+    if (payload.is<JsonObjectConst>()) {
+        for (JsonPairConst pair : payload.as<JsonObjectConst>()) {
+            if (hasNonFiniteNumber(pair.value())) {
+                return true;
+            }
+        }
+        return false;
+    }
+    if (payload.is<JsonArrayConst>()) {
+        for (JsonVariantConst item : payload.as<JsonArrayConst>()) {
+            if (hasNonFiniteNumber(item)) {
+                return true;
+            }
+        }
+        return false;
+    }
+    return payload.is<double>() && !isfinite(payload.as<double>());
 }
 
 UpgradeFailure classifyUpgradeFailure(const char* reason, size_t length) {

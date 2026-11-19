@@ -9,6 +9,8 @@ namespace wbskt_core {
 constexpr const char* kSubprotocol = "wbskt.v1";
 constexpr size_t kMaxMessageBytes = 64 * 1024;
 constexpr size_t kMaxTypeLength = 100;
+// A client name, counted as the platform counts it once trimmed.
+constexpr size_t kMaxClientNameLength = 100;
 // The close code for closing to install a firmware update: the server shows the client as updating,
 // not offline, for up to 5 minutes or until it connects again.
 constexpr uint16_t kCloseUpdating = 4000;
@@ -47,6 +49,13 @@ bool isReserved(const char* type);
 
 // 1-100 characters and not reserved.
 bool isSendableType(const char* type);
+
+// 1-100 characters once trimmed, as registration counts them (UTF-16 units, as the platform does).
+bool isValidClientName(const char* name);
+
+// A registration answer no retry can fix (protocol §1): a wrong or missing PIN, or a name the
+// platform can't store. The client stops instead of calling registration again.
+bool isFinalRegistrationCode(const char* code);
 
 enum class UpgradeFailure {
     TokenRefused,  // the upgrade was answered 401: log in again

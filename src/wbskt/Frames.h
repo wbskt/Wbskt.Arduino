@@ -37,6 +37,9 @@ struct ClientInfo {
 // An application message, without sentAt: that is added as it goes out (stampSentAt), so a
 // message queued before the clock was set can still carry the time it was made.
 std::string encodeMessage(const char* type, JsonVariantConst payload);
+// Whether a payload holds NaN or infinity anywhere. JSON has neither, so such a message is refused
+// (protocol §4.1) rather than sent with null in place of the reading.
+bool hasNonFiniteNumber(JsonVariantConst payload);
 // Adds "sentAt" to a frame from encodeMessage. Bytes it adds at most: kSentAtBytes.
 void stampSentAt(std::string& frame, int64_t epochMillis);
 constexpr size_t kSentAtBytes = 37;

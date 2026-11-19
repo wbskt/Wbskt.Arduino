@@ -3,6 +3,7 @@
 
 #include <ArduinoJson.h>
 
+#include <cmath>
 #include <cstdio>
 #include <cstring>
 #include <string>
@@ -402,8 +403,63 @@ void upgradeFailures() {
 
 }  // namespace
 
+void clientNames() {
+    CHECK(!wbskt_core::isValidClientName(nullptr));
+    CHECK(!wbskt_core::isValidClientName(""));
+    CHECK(!wbskt_core::isValidClientName("   "));
+    CHECK(wbskt_core::isValidClientName("greenhouse"));
+    CHECK(wbskt_core::isValidClientName((" " + std::string(100, 'x') + "\n").c_str()));
+    CHECK(!wbskt_core::isValidClientName(std::string(101, 'x').c_str()));
+    // Counted in the platform's UTF-16 units, not bytes: 100 two-byte letters fit, 51 emoji don't.
+    std::string accents;
+    for (int i = 0; i < 100; ++i) {
+        accents += "\xC3\xA9";
+    }
+    CHECK(wbskt_core::isValidClientName(accents.c_str()));
+    std::string emoji;
+    for (int i = 0; i < 51; ++i) {
+        emoji += "\xF0\x9F\x8C\xBF";
+    }
+    CHECK(!wbskt_core::isValidClientName(emoji.c_str()));
+}
+
+void finalRegistrationCodes() {
+    CHECK(wbskt_core::isFinalRegistrationCode("POLICY_NOT_FOUND"));
+    CHECK(wbskt_core::isFinalRegistrationCode("REGISTRATION_PIN_REQUIRED"));
+    CHECK(wbskt_core::isFinalRegistrationCode("CLIENT_NAME_INVALID"));
+    CHECK(!wbskt_core::isFinalRegistrationCode("POLICY_DISABLED"));
+    CHECK(!wbskt_core::isFinalRegistrationCode("POLICY_LIMIT_REACHED"));
+    CHECK(!wbskt_core::isFinalRegistrationCode("PLAN_CLIENT_LIMIT_REACHED"));
+    CHECK(!wbskt_core::isFinalRegistrationCode(nullptr));
+}
+
+void nonFiniteNumbers() {
+    JsonDocument fine;
+    fine["celsius"] = 21.5;
+    fine["count"] = 3;
+    fine["name"] = "dht";
+    fine["list"].add(1.5);
+    CHECK(!wbskt_core::hasNonFiniteNumber(fine.as<JsonVariantConst>()));
+
+    JsonDocument failed;
+    failed["celsius"] = NAN;
+    CHECK(wbskt_core::hasNonFiniteNumber(failed.as<JsonVariantConst>()));
+
+    JsonDocument nested;
+    nested["readings"][0]["v"] = 1.0;
+    nested["readings"][1]["v"] = INFINITY;
+    CHECK(wbskt_core::hasNonFiniteNumber(nested.as<JsonVariantConst>()));
+
+    JsonDocument bare;
+    bare.set(-INFINITY);
+    CHECK(wbskt_core::hasNonFiniteNumber(bare.as<JsonVariantConst>()));
+}
+
 int main() {
     reservedTypes();
+    clientNames();
+    finalRegistrationCodes();
+    nonFiniteNumbers();
     isoTime();
     messages();
     capabilities();

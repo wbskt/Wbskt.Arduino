@@ -129,8 +129,9 @@ public:
     void publishCapabilities();
 
     // Send an application message, or queue it while offline. False if the type is reserved or
-    // empty, the message is over 64 KB, or it has to wait and is larger than the whole offline
-    // buffer (offlineBufferBytes), so it was dropped.
+    // empty, a number in it is NaN or infinite (a sensor that failed to read: leave it out instead),
+    // the message is over 64 KB, or it has to wait and is larger than the whole offline buffer
+    // (offlineBufferBytes), so it was dropped.
     bool send(const char* type, JsonVariantConst payload);
     bool send(const char* type, const JsonDocument& payload) { return send(type, payload.as<JsonVariantConst>()); }
     // Report the state variables that changed. Numbers are kept as readings for charts. False on
@@ -189,6 +190,7 @@ private:
     void otaReachedHost();
     void attemptFailed();
     void schedule(uint32_t delayMs);
+    bool enqueueMessage(const char* type, JsonVariantConst payload);
     bool enqueue(std::string frame);
     bool transmit(std::string& frame, wbskt_core::Stamp stamp);
     void flushOutbox();
