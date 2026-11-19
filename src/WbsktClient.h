@@ -147,8 +147,13 @@ public:
     size_t queuedMessages() const { return outbox_.size(); }
     // Messages dropped because the buffer was full.
     size_t droppedMessages() const { return outbox_.dropped(); }
-    // Discard the stored credentials, so the next connection registers again.
+    // Discard the stored credentials, so the next begin() registers again with the PIN.
     void forgetCredentials();
+    // Store credentials from elsewhere, such as the new secret after a rotation in the console.
+    // Call begin() after it if the client stopped because login refused the old ones.
+    void setCredentials(const char* clientRefId, const char* secret);
+    // The stored client id, empty before the first registration.
+    const String& clientRefId() const { return clientRefId_; }
 
 private:
     enum class State { Stopped, Waiting, SigningIn, Connecting, Connected };
