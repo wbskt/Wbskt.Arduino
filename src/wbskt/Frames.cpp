@@ -86,8 +86,8 @@ bool isFinalRegistrationCode(const char* code) {
     if (code == nullptr) {
         return false;
     }
-    for (const char* final : kFinal) {
-        if (strcmp(code, final) == 0) {
+    for (const char* candidate : kFinal) {
+        if (strcmp(code, candidate) == 0) {
             return true;
         }
     }
