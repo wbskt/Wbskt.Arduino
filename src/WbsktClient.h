@@ -35,6 +35,12 @@ struct WbsktOtaRequest {
 class WbsktSocket : public WebSocketsClient {
 public:
     using WebSocketsClient::disconnect;
+    // True from the TCP connect on, through the upgrade: isConnected() is true only once the 101 has
+    // been read, a loop() or more after the one that connected. Reads state only; unlike
+    // clientIsConnected() it frees nothing and raises no event.
+    bool open() const {
+        return _client.tcp != nullptr && _client.status != WSC_NOT_CONNECTED;
+    }
     void disconnect(uint16_t code) {
         if (clientIsConnected(&_client)) {
             WebSockets::clientDisconnect(&_client, code);

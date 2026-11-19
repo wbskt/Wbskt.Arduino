@@ -5,7 +5,12 @@
 // - a failed TCP connect raises no event;
 // - a refused upgrade raises WStype_DISCONNECTED with "HTTP <code>" when the answer carried
 //   Connection: upgrade, and "WebSocket handshake failed - HTTP <code>" when it did not;
-// - sendTXT() is false unless connected, and isConnected() is true from the TCP connect on;
+// - sendTXT() is false unless connected, and isConnected() is true only once the 101 is read, which
+//   happens on a later loop() than the one that connects and sends the upgrade request;
+// - a connect allocates the network client (_client.tcp) whether or not it succeeds. Only the
+//   library frees it: disconnect(), or the next loop() while not connected, cleans it up and raises
+//   WStype_DISCONNECTED "TCP connection cleanup". begin() sets the pointer to NULL without freeing
+//   it, so begin() over a client still allocated leaks it; here that aborts the harness;
 // - the heartbeat: a ping every interval while connected, and a disconnect once `misses` pongs in
 //   a row haven't come back within the timeout (WebSockets::handleHBTimeout).
 // The host may carry a port of its own ("127.0.0.1:6000"), which wins over the port argument.
@@ -29,7 +34,14 @@ enum WStype_t {
     WStype_PONG,
 };
 
-struct WSclient_t {};
+enum WSclientsStatus_t { WSC_NOT_CONNECTED, WSC_HEADER, WSC_BODY, WSC_CONNECTED };
+
+// The fields of the library's WSclient_t a subclass reads. tcp is only a marker here: non-null
+// while the library holds a network client, as it is in the library.
+struct WSclient_t {
+    void* tcp = nullptr;
+    WSclientsStatus_t status = WSC_NOT_CONNECTED;
+};
 
 // The library's base, as far as a subclass reaches into it: clientDisconnect(client, code) sends a
 // close frame with that code, then drops the connection.
@@ -58,23 +70,22 @@ public:
         disconnectTimeoutCount_ = disconnectTimeoutCount;
         pongReceived_ = false;
     }
-    bool isConnected() const { return status_ != Status::NotConnected; }
-    void disconnect() { closeWith(1000); }
+    bool isConnected() const { return _client.status == WSC_CONNECTED; }
+    void disconnect();
 
 protected:
     WSclient_t _client;
-    bool clientIsConnected(WSclient_t*) const { return isConnected(); }
+    bool clientIsConnected(WSclient_t*);
     void closeWith(uint16_t code) override;
 
 private:
-    enum class Status { NotConnected, Header, Connected };
-
     void connect();
     void readHeader();
     void readFrames();
     bool sendFrame(uint8_t opcode, const uint8_t* data, size_t length);
     bool readAvailable();
     void dropConnection(const char* reason);
+    void cleanUp();
     void raise(WStype_t type, const uint8_t* payload, size_t length);
     void heartbeat();
 
@@ -86,7 +97,6 @@ private:
     std::string authorization_;
     unsigned long reconnectInterval_ = 500;
     unsigned long lastConnectionFail_ = 0;
-    Status status_ = Status::NotConnected;
     int fd_ = -1;
     std::string buffer_;
     uint32_t pingInterval_ = 0;

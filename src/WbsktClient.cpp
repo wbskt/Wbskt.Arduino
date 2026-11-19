@@ -141,9 +141,12 @@ void WbsktClient::loop() {
             if (!attemptStarted_) {
                 attemptStarted_ = true;
                 socket_.setReconnectInterval(kNeverReconnect);
-                // A refused TCP connect raises no event; don't wait out the timeout for it.
-                if (state_ == State::Connecting && !socket_.isConnected()) {
+                // A refused TCP connect raises no event; don't wait out the timeout for it. The upgrade
+                // reply is read on a later loop(), so this checks the TCP connect, not isConnected().
+                if (state_ == State::Connecting && !socket_.open()) {
+                    // Leave Connecting first, so the cleanup event this raises isn't counted twice.
                     attemptFailed();
+                    socket_.disconnect();
                     return;
                 }
             }
@@ -296,6 +299,9 @@ void WbsktClient::finishLogin(int status, const JsonDocument& response) {
 }
 
 void WbsktClient::openSocket() {
+    // begin() drops the library's TLS client without freeing it, so have the library free whatever
+    // it still holds first. The state isn't Connecting yet, so the event that raises is ignored.
+    socket_.disconnect();
     // begin() clears the authorization, so it is set after.
     socket_.beginSslWithCA(config_.socketHost, config_.port, wbskt_core::kSocketPath, config_.rootCa, wbskt_core::kSubprotocol);
     authHeader_ = "Bearer " + token_;

@@ -309,12 +309,13 @@ void WebSocketsClient::beginSslWithCA(const char* host, uint16_t port, const cha
     splitHost(host, host_, port_);
     path_ = url;
     protocol_ = protocol ? protocol : "";
-    // Like the library, begin() drops the socket without an event, and clears the authorization.
-    if (fd_ >= 0) {
-        close(fd_);
-        fd_ = -1;
+    // The library's begin() sets _client.tcp to NULL without deleting it: on a board that leaks the
+    // TLS client and its socket, so a caller must have the library free it first.
+    if (_client.tcp != nullptr) {
+        fprintf(stderr, "shim: begin() over a network client still allocated leaks it\n");
+        abort();
     }
-    status_ = Status::NotConnected;
+    _client.status = WSC_NOT_CONNECTED;
     authorization_.clear();
     buffer_.clear();
     lastConnectionFail_ = 0;
@@ -333,7 +334,7 @@ void WebSocketsClient::loop() {
     if (port_ == 0) {
         return;
     }
-    if (status_ == Status::NotConnected) {
+    if (!clientIsConnected(&_client)) {
         if (millis() - lastConnectionFail_ < reconnectInterval_) {
             return;
         }
@@ -342,17 +343,17 @@ void WebSocketsClient::loop() {
     }
     // What arrived before the peer closed (a refusal, a close frame) is handled first.
     const bool open = readAvailable();
-    if (status_ == Status::Header) {
+    if (_client.status == WSC_HEADER) {
         readHeader();
     }
-    if (status_ == Status::Connected) {
+    if (_client.status == WSC_CONNECTED) {
         readFrames();
     }
-    if (!open && status_ != Status::NotConnected) {
+    if (!open && _client.status != WSC_NOT_CONNECTED) {
         dropConnection("Connection lost");
         return;
     }
-    if (status_ == Status::Connected) {
+    if (_client.status == WSC_CONNECTED) {
         heartbeat();
     }
 }
@@ -381,13 +382,14 @@ void WebSocketsClient::heartbeat() {
 }
 
 void WebSocketsClient::connect() {
+    _client.tcp = this;
     fd_ = connectTcp(host_, port_);
     if (fd_ < 0) {
         lastConnectionFail_ = millis();
         return;
     }
     lastConnectionFail_ = 0;
-    status_ = Status::Header;
+    _client.status = WSC_HEADER;
     std::string request = "GET " + path_ + " HTTP/1.1\r\nHost: " + host_ + ":" + std::to_string(port_) +
                           "\r\nConnection: Upgrade\r\nUpgrade: websocket\r\nSec-WebSocket-Version: 13\r\n"
                           "Sec-WebSocket-Key: dGhlIHNhbXBsZSBub25jZQ==\r\n";
@@ -446,7 +448,7 @@ void WebSocketsClient::readHeader() {
     }
 
     if (isUpgrade && code == 101 && hasAccept) {
-        status_ = Status::Connected;
+        _client.status = WSC_CONNECTED;
         raise(WStype_CONNECTED, reinterpret_cast<const uint8_t*>(path_.c_str()), path_.size());
         return;
     }
@@ -456,7 +458,7 @@ void WebSocketsClient::readHeader() {
 }
 
 void WebSocketsClient::readFrames() {
-    while (status_ == Status::Connected && buffer_.size() >= 2) {
+    while (_client.status == WSC_CONNECTED && buffer_.size() >= 2) {
         const uint8_t* p = reinterpret_cast<const uint8_t*>(buffer_.data());
         const uint8_t opcode = p[0] & 0x0F;
         const bool masked = (p[1] & 0x80) != 0;
@@ -547,29 +549,52 @@ bool WebSocketsClient::sendFrame(uint8_t opcode, const uint8_t* data, size_t len
 }
 
 bool WebSocketsClient::sendTXT(const char* payload) {
-    if (status_ != Status::Connected) {
+    if (_client.status != WSC_CONNECTED) {
         return false;
     }
     return sendFrame(0x1, reinterpret_cast<const uint8_t*>(payload), strlen(payload));
 }
 
 void WebSocketsClient::closeWith(uint16_t code) {
-    if (status_ == Status::NotConnected) {
+    if (_client.status == WSC_NOT_CONNECTED) {
         return;
     }
-    if (status_ == Status::Connected) {
+    if (_client.status == WSC_CONNECTED) {
         const uint8_t payload[2] = {static_cast<uint8_t>(code >> 8), static_cast<uint8_t>(code & 0xFF)};
         sendFrame(0x8, payload, 2);
     }
     dropConnection(nullptr);
 }
 
-void WebSocketsClient::dropConnection(const char* reason) {
+// The library's clientIsConnected(): true while connected or mid-handshake; otherwise it frees a
+// network client it still holds, raising "TCP connection cleanup".
+bool WebSocketsClient::clientIsConnected(WSclient_t*) {
+    if (_client.tcp != nullptr && _client.status != WSC_NOT_CONNECTED) {
+        return true;
+    }
+    if (_client.tcp != nullptr) {
+        dropConnection("TCP connection cleanup");
+    }
+    return false;
+}
+
+void WebSocketsClient::disconnect() {
+    if (clientIsConnected(&_client)) {
+        closeWith(1000);
+    }
+}
+
+void WebSocketsClient::cleanUp() {
     if (fd_ >= 0) {
         close(fd_);
         fd_ = -1;
     }
-    status_ = Status::NotConnected;
+    _client.tcp = nullptr;
+}
+
+void WebSocketsClient::dropConnection(const char* reason) {
+    cleanUp();
+    _client.status = WSC_NOT_CONNECTED;
     buffer_.clear();
     lastConnectionFail_ = millis();
     if (reason != nullptr && *reason != '\0') {
