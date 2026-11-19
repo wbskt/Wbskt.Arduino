@@ -275,16 +275,20 @@ WbsktClient wbskt("greenhouse-sensor", "483920", config);
 | `onOta(handler)` | Update progress: `Accepted`, `Downloading` with a percentage, `Installed`, `Failed`, `Rejected`. |
 | `queuedMessages()` | Messages waiting in the buffer. |
 | `droppedMessages()` | Messages dropped because the buffer was full, since boot. |
-| `forgetCredentials()` | Deletes the stored credentials, so the next connection registers again with the PIN. |
+| `forgetCredentials()` | Deletes the stored credentials, so the next `begin()` registers again with the PIN. |
+| `setCredentials(clientRefId, secret)` | Stores credentials, such as the new secret after a rotation. Call `begin()` after it if the client stopped. |
+| `clientRefId()` | The stored client id, empty before the first registration. |
 
 ## How the connection behaves
 
 **Credentials.** The board registers once with the PIN and keeps the client id and secret in NVS
 (namespace `wbskt`). It never registers again while it has them, because each registration is a new
-client in the console and counts against the policy's limit. It discards them only when the server
-says they are no longer valid (`CLIENT_UNAUTHORIZED`: the client was deleted, or its secret
-rotated), and then registers again. With no credentials and no PIN, the client logs an error and
-stops.
+client in the console and counts against the policy's limit. Not even when the server refuses them
+(`CLIENT_UNAUTHORIZED`: the client was deleted, or its secret rotated): registering again would
+bring a deleted board back as a new client. The client keeps them, logs an error and stops. To go
+on, call `setCredentials(clientRefId(), newSecret)` with the secret the console showed, or
+`forgetCredentials()` to register again with the PIN (a deleted board, or a fresh install), then
+`begin()`. With no credentials and no PIN, the client logs an error and stops.
 
 **Token.** Login returns an access token, which is reused for every reconnect until a minute before
 it expires (an hour today). The board logs in again only then, or when the socket refuses the token
@@ -352,6 +356,7 @@ logs lines starting with `wbskt:`.
 |---|---|
 | `no stored credentials and no policy PIN` | First boot without a PIN. Pass the policy's PIN. |
 | `registration answered` with a 4xx code | The server refused the PIN. Check it, and that the policy is enabled and not full. |
+| `login answered 401 CLIENT_UNAUTHORIZED` | The client was deleted or its secret rotated in the console, and it stopped. Store the new secret with `setCredentials()`, or `forgetCredentials()` to register again, then `begin()`. |
 | `login answered 401 CLIENT_NOT_REGISTERED` | The policy needs approval. Approve the client in the console; the board connects on its next retry. |
 | It connects, then drops every minute or so | Pongs aren't coming back in time. Raise `heartbeatTimeoutMs` on a slow link. |
 | `droppedMessages()` keeps rising | The board makes messages faster than 8 a second, or was offline longer than the buffer covers. Send less often, or raise `offlineBufferBytes`. |

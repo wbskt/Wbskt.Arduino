@@ -291,8 +291,14 @@ void WbsktClient::finishLogin(int status, const JsonDocument& response) {
     }
     const char* code = response["code"];
     if (status == 401 && code != nullptr && strcmp(code, wbskt_core::kCodeUnauthorized) == 0) {
-        // Deleted, or its secret rotated: these credentials will never work again.
-        forgetCredentials();
+        // Deleted, or its secret rotated. Registering again would bring a deleted board back as a new
+        // client, or leave a rotated one offline beside a duplicate, so keep them and stop.
+        log_e("wbskt: login answered 401 CLIENT_UNAUTHORIZED: the client was deleted or its secret rotated. "
+              "Stopped. Call setCredentials() with the new secret, or forgetCredentials() to register again, "
+              "then begin()");
+        token_ = "";
+        state_ = State::Stopped;
+        return;
     }
     log_w("wbskt: login answered %d %s", status, code ? code : "");
     attemptFailed();
@@ -595,6 +601,16 @@ void WbsktClient::flushOutbox() {
         }
         outbox_.pop();
     }
+}
+
+void WbsktClient::setCredentials(const char* clientRefId, const char* secret) {
+    clientRefId_ = clientRefId ? clientRefId : "";
+    secret_ = secret ? secret : "";
+    token_ = "";
+    prefs_.begin(kPrefsNamespace, false);
+    prefs_.putString(kPrefsRef, clientRefId_);
+    prefs_.putString(kPrefsSecret, secret_);
+    prefs_.end();
 }
 
 void WbsktClient::forgetCredentials() {
