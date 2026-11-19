@@ -72,8 +72,27 @@ UpgradeFailure classifyUpgradeFailure(const char* reason, size_t length) {
                : UpgradeFailure::Other;
 }
 
-bool upgradeWasAnswered(const char* reason, size_t length) {
-    return reason != nullptr && std::string(reason, length).find("HTTP ") != std::string::npos;
+int upgradeStatus(const char* reason, size_t length) {
+    if (reason == nullptr) {
+        return 0;
+    }
+    const std::string text(reason, length);
+    const size_t at = text.find("HTTP ");
+    if (at == std::string::npos || text.size() < at + 8) {
+        return 0;
+    }
+    int status = 0;
+    for (size_t i = at + 5; i < at + 8; ++i) {
+        if (!isdigit(static_cast<unsigned char>(text[i]))) {
+            return 0;
+        }
+        status = status * 10 + (text[i] - '0');
+    }
+    return text.size() == at + 8 || !isdigit(static_cast<unsigned char>(text[at + 8])) ? status : 0;
+}
+
+bool answerKeepsNewFirmware(int status) {
+    return (status >= 200 && status < 300) || status == 429 || status >= 500;
 }
 
 std::string encodeMessage(const char* type, JsonVariantConst payload) {

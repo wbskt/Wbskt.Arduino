@@ -205,7 +205,7 @@ async def test_goes_back_when_the_new_firmware_never_connects(api, socket_server
     await old.expect("restart")
 
     # A firmware whose network never gets through: nothing answers it, neither the API nor the socket
-    # host. An HTTP answer, even an error, would keep it (see the next scenario).
+    # host. A 503 would keep it (see the scenario before this one).
     api_url = api.url
     api.url = "http://127.0.0.1:9"
     socket_server.down = True
@@ -229,4 +229,36 @@ async def test_goes_back_when_the_new_firmware_never_connects(api, socket_server
 
     assert failed["commandId"] == "o5"
     assert failed["version"] == "1.1.0"
+    assert "went back" in failed["error"]
+
+
+async def test_goes_back_when_wbskt_refuses_the_new_firmware(api, socket_server, client, monkeypatch):
+    monkeypatch.setenv("WBSKT_OTA", "1.0.0")
+    monkeypatch.setenv("WBSKT_OTA_INSTALL", "ok")
+    old = await client()
+    await old.expect("connected")
+    await socket_server.send(0, ota_update("o8"))
+    await old.expect("restart")
+
+    # Wbskt answers, but refuses every sign-in, as for a firmware built with the wrong key: an answer
+    # like this doesn't stop the trial clock, so the board still goes back.
+    api.login_answers = [(403, {"code": "CLIENT_FORBIDDEN"}, {})] * 1000
+    monkeypatch.setenv("WBSKT_OTA", "1.1.0")
+    monkeypatch.setenv("WBSKT_OTA_CONFIRM_MS", "1500")
+    refused = await client()
+    await refused.expect("restart", timeout=10.0)
+
+    api.login_answers = []
+    monkeypatch.setenv("WBSKT_OTA", "1.0.0")
+    monkeypatch.delenv("WBSKT_OTA_CONFIRM_MS")
+    back = await client()
+    await back.expect("ota", state="failed")
+    await back.expect("connected", timeout=RECONNECT)
+    failed = None
+    while failed is None:
+        status = await next_ota_status(socket_server)
+        if status["state"] == "failed":
+            failed = status
+
+    assert failed["commandId"] == "o8"
     assert "went back" in failed["error"]

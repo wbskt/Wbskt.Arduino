@@ -210,9 +210,10 @@ What the board does on its own:
 - It **goes back** to the previous firmware if the new one can't reach Wbskt within
   `otaConfirmTimeoutMs` (5 minutes of WiFi being up), or restarts `otaTrialBoots` (3) times without
   connecting. The old firmware then reports `failed`. Only time with WiFi up counts, so a router
-  that comes back slowly after a power cut doesn't roll back a good update, and any HTTP answer
-  from Wbskt, even an error while the service is down, stops the clock: the new firmware's network
-  works, so it stays until it connects. What rolls back is a firmware that can't get through at
+  that comes back slowly after a power cut doesn't roll back a good update. A sign-in Wbskt
+  accepts, or a 429 or 5xx while the service is down, stops the clock: the new firmware's network
+  works, so it stays until it connects. A refused key or any other 4xx doesn't, so a firmware built
+  with the wrong key still goes back. What also rolls back is a firmware that can't get through at
   all (no TLS, no DNS, a broken WiFi stack) or that keeps crashing. A firmware that crashes before
   `begin()` isn't caught.
 - It **keeps the credentials**. NVS isn't touched, so the board signs in as the same client.
