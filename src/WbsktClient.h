@@ -90,13 +90,17 @@ struct WbsktConfig {
 
 class WbsktCommandBuilder {
 public:
-    explicit WbsktCommandBuilder(wbskt_core::Command& command) : command_(command) {}
+    // By position, not by reference: a later addCommand can move the commands, and a builder the
+    // sketch kept must still reach its own.
+    WbsktCommandBuilder(std::vector<wbskt_core::Command>& commands, size_t index)
+        : commands_(commands), index_(index) {}
 
     WbsktCommandBuilder& param(const char* name, WbsktDataType type, bool required = false,
                                const char* label = "", const char* description = "");
 
 private:
-    wbskt_core::Command& command_;
+    std::vector<wbskt_core::Command>& commands_;
+    size_t index_;
 };
 
 class WbsktClient {
