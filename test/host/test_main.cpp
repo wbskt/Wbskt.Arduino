@@ -77,6 +77,21 @@ void messages() {
     CHECK(frame["payload"]["celsius"].as<double>() == 21.5);
     CHECK(std::strcmp(frame["sentAt"], "2026-10-31T12:00:00.007Z") == 0);
 
+    // A frame stamped once keeps its first time and a single sentAt.
+    const std::string once = text;
+    wbskt_core::stampSentAt(text, kNow * 1000 + 999);
+    CHECK(text == once);
+
+    // A payload with its own sentAt is still stamped at the top level.
+    JsonDocument own;
+    own["sentAt"] = "earlier";
+    std::string nested = wbskt_core::encodeMessage("reading", own.as<JsonVariantConst>());
+    wbskt_core::stampSentAt(nested, kNow * 1000);
+    JsonDocument nestedFrame;
+    readJson(nested, nestedFrame);
+    CHECK(std::strcmp(nestedFrame["payload"]["sentAt"], "earlier") == 0);
+    CHECK(std::strcmp(nestedFrame["sentAt"], "2026-10-31T12:00:00.000Z") == 0);
+
     std::string clockless = wbskt_core::encodeMessage("temperature", payload.as<JsonVariantConst>());
     wbskt_core::stampSentAt(clockless, -1);
     JsonDocument stillUnstamped;

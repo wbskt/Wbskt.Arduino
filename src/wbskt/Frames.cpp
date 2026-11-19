@@ -83,6 +83,11 @@ void stampSentAt(std::string& frame, int64_t epochMillis) {
     if (frame.empty() || frame.back() != '}' || epochMillis < 0) {
         return;
     }
+    // Already stamped: the field is the envelope's last, with nothing closing between it and the end.
+    const size_t stamped = frame.rfind(",\"sentAt\":\"");
+    if (stamped != std::string::npos && frame.find('}', stamped) == frame.size() - 1) {
+        return;
+    }
     const std::string field = ",\"sentAt\":\"" +
                               formatIsoTime(epochMillis / 1000, static_cast<uint16_t>(epochMillis % 1000)) + "\"";
     frame.insert(frame.size() - 1, field);

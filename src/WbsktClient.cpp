@@ -592,8 +592,12 @@ bool WbsktClient::enqueue(std::string frame) {
     }
     const wbskt_core::Stamp stamp{nowEpochMillis(), static_cast<uint32_t>(millis())};
     // Straight out when nothing is waiting, so a new message never overtakes the backlog.
-    if (state_ == State::Connected && outbox_.empty() && sendRate_.take(millis()) && transmit(frame, stamp)) {
-        return true;
+    if (state_ == State::Connected && outbox_.empty() && sendRate_.take(millis())) {
+        // Stamped on a copy: if the send fails, the frame queued below must not carry sentAt already.
+        sending_.assign(frame);
+        if (transmit(sending_, stamp)) {
+            return true;
+        }
     }
     // False when it is bigger than the whole offline buffer (or buffering is off): it was dropped.
     return outbox_.push(frame, stamp);
